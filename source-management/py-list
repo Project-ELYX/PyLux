@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+
+##! name: py-list
+##! desc: List installed Python versions and their locations
+##! group: python
+##! <.ELYX.>
+
+# DEFINE ANSI COLOR CODES
+
+# Standard Text
+BLACK='\033[30m'
+RED='\033[31m'
+GREEN='\033[32m'
+YELLOW='\033[33m'
+BLUE='\033[34m'
+MAGENTA='\033[35m'
+CYAN='\033[36m'
+WHITE='\033[37m'
+
+# Bright Text
+BRIGHT_BLACK='\033[90m'
+BRIGHT_RED='\033[91m'
+BRIGHT_GREEN='\033[92m'
+BRIGHT_YELLOW='\033[93m'
+BRIGHT_BLUE='\033[94m'
+BRIGHT_MAGENTA='\033[95m'
+BRIGHT_CYAN='\033[96m'
+BRIGHT_WHITE='\033[97m'
+
+# Reset
+RESET='\033[0m'
+
+# SET PATHS
+PREFIX_PATH="/opt/python-lab/"
+
+echo -e "${MAGENTA}[*] +++ INSTALLED PYTHON VERSIONS +++${RESET}"
+echo ""
+
+# CHECK IF PREFIX PATH EXISTS
+if [ ! -d "$PREFIX_PATH" ]; then
+    echo -e "${BRIGHT_RED}No Python installations found at $PREFIX_PATH${RESET}"
+    exit 0
+fi
+
+# LIST INSTALLED VERSIONS
+echo -e "${BRIGHT_CYAN}Installed Python versions in $PREFIX_PATH:${RESET}"
+echo ""
+
+FOUND_ANY=false
+
+for dir in "$PREFIX_PATH"*/; do
+    if [ -d "$dir" ]; then
+        FOUND_ANY=true
+        VERSION=$(basename "$dir")
+        
+        # Try to find the Python binary (could be python3.x or python3.x-opt format)
+        PYTHON_BIN=""
+        for candidate in "$dir/bin/python"* ; do
+            if [ -f "$candidate" ] && [ -x "$candidate" ]; then
+                PYTHON_BIN="$candidate"
+                break
+            fi
+        done
+        
+        if [ -n "$PYTHON_BIN" ]; then
+            # Get actual Python version
+            ACTUAL_VERSION=$("$PYTHON_BIN" --version 2>&1 | awk '{print $2}')
+            echo -e "${GREEN}  ✓ Python $VERSION${RESET}"
+            echo -e "    ${WHITE}Location: $dir${RESET}"
+            echo -e "    ${WHITE}Binary:   $PYTHON_BIN${RESET}"
+            echo -e "    ${WHITE}Version:  $ACTUAL_VERSION${RESET}"
+            echo ""
+        else
+            echo -e "${YELLOW}  ⚠ Python $VERSION (binary not found)${RESET}"
+            echo -e "    ${WHITE}Location: $dir${RESET}"
+            echo ""
+        fi
+    fi
+done
+
+if [ "$FOUND_ANY" = false ]; then
+    echo -e "${BRIGHT_YELLOW}No Python installations found.${RESET}"
+    echo ""
+fi
+
+# LIST SYMLINKS IN /usr/local/bin
+echo -e "${BRIGHT_CYAN}Python symlinks in /usr/local/bin:${RESET}"
+echo ""
+
+FOUND_SYMLINKS=false
+
+for symlink in /usr/local/bin/py[0-9]*; do
+    if [ -L "$symlink" ]; then
+        FOUND_SYMLINKS=true
+        TARGET=$(readlink -f "$symlink")
+        SYMLINK_NAME=$(basename "$symlink")
+        
+        if [ -f "$TARGET" ]; then
+            # Get version from the symlink
+            SYMLINK_VERSION=$("$symlink" --version 2>&1 | awk '{print $2}')
+            echo -e "${GREEN}  ✓ $SYMLINK_NAME${RESET} → ${CYAN}$TARGET${RESET}"
+            echo -e "    ${WHITE}Version: $SYMLINK_VERSION${RESET}"
+            echo ""
+        else
+            echo -e "${RED}  ✗ $SYMLINK_NAME${RESET} → ${BRIGHT_RED}$TARGET (broken link)${RESET}"
+            echo ""
+        fi
+    fi
+done
+
+if [ "$FOUND_SYMLINKS" = false ]; then
+    echo -e "${BRIGHT_YELLOW}No Python symlinks found.${RESET}"
+    echo ""
+fi
+
+echo -e "${BRIGHT_BLUE}Use 'py-altinstall' to install additional Python versions.${RESET}"
+

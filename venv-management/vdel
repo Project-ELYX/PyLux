@@ -1,0 +1,170 @@
+#!/usr/bin/env bash
+
+##! name: vdel
+##! desc: Safely delete virtual environments from ~/venvs/ with confirmation
+##! group: python
+##! <.ELYX.>
+
+# DEFINE ANSI COLOR CODES
+
+# Standard Text
+RED='\033[31m'
+GREEN='\033[32m'
+YELLOW='\033[33m'
+CYAN='\033[36m'
+WHITE='\033[37m'
+
+# Bright Text
+BRIGHT_RED='\033[91m'
+BRIGHT_GREEN='\033[92m'
+BRIGHT_YELLOW='\033[93m'
+BRIGHT_CYAN='\033[96m'
+BRIGHT_MAGENTA='\033[95m'
+
+# Reset
+RESET='\033[0m'
+
+# SET PATHS
+VENV_DIR="$HOME/venvs"
+
+echo -e "${BRIGHT_MAGENTA}[*] +++ VENV DELETION +++${RESET}"
+echo ""
+
+# CHECK IF VENV DIRECTORY EXISTS
+if [ ! -d "$VENV_DIR" ]; then
+    echo -e "${BRIGHT_RED}No venv directory found at $VENV_DIR${RESET}"
+    exit 0
+fi
+
+# LIST AVAILABLE VENVS
+echo -e "${BRIGHT_CYAN}Available venvs in $VENV_DIR:${RESET}"
+echo ""
+
+VENV_LIST=()
+INDEX=1
+
+for venv_path in "$VENV_DIR"/*/; do
+    if [ -d "$venv_path" ]; then
+        VENV_NAME=$(basename "$venv_path")
+        VENV_LIST+=("$VENV_NAME")
+        
+        # Check if it's currently active
+        if [ -n "$VIRTUAL_ENV" ] && [ "$VIRTUAL_ENV" == "$venv_path" ]; then
+            echo -e "  ${GREEN}$INDEX)${RESET} $VENV_NAME ${YELLOW}(currently active)${RESET}"
+        else
+            echo -e "  ${GREEN}$INDEX)${RESET} $VENV_NAME"
+        fi
+        ((INDEX++))
+    fi
+done
+
+if [ ${#VENV_LIST[@]} -eq 0 ]; then
+    echo -e "${BRIGHT_YELLOW}No venvs found${RESET}"
+    exit 0
+fi
+
+echo ""
+echo -e "${WHITE}Enter venv number to delete (or name directly): ${RESET}"
+read -r SELECTION
+
+# Check if it's a number or name
+if [[ "$SELECTION" =~ ^[0-9]+$ ]]; then
+    # It's a number
+    if [ "$SELECTION" -lt 1 ] || [ "$SELECTION" -gt ${#VENV_LIST[@]} ]; then
+        echo -e "${BRIGHT_RED}Invalid selection${RESET}"
+        exit 1
+    fi
+    VENV_NAME="${VENV_LIST[$((SELECTION-1))]}"
+else
+    # It's a name
+    VENV_NAME="$SELECTION"
+fi
+
+VENV_PATH="$VENV_DIR/$VENV_NAME"
+
+# CHECK IF EXISTS
+if [ ! -d "$VENV_PATH" ]; then
+    echo -e "${BRIGHT_RED}Error: Venv '$VENV_NAME' not found${RESET}"
+    exit 1
+fi
+
+# WARN IF CURRENTLY ACTIVE
+if [ -n "$VIRTUAL_ENV" ] && [ "$VIRTUAL_ENV" == "$VENV_PATH" ]; then
+    echo -e "${BRIGHT_RED}⚠ WARNING: This venv is currently active!${RESET}"
+    echo -e "${YELLOW}You should deactivate it first, but we can proceed anyway.${RESET}"
+    echo ""
+fi
+
+# GET VENV INFO
+PYTHON_BIN="$VENV_PATH/bin/python"
+if [ -f "$PYTHON_BIN" ]; then
+    PYTHON_VERSION=$("$PYTHON_BIN" --version 2>&1 | awk '{print $2}')
+    if [ -f "$VENV_PATH/bin/pip" ]; then
+        PACKAGE_COUNT=$("$VENV_PATH/bin/pip" list 2>/dev/null | tail -n +3 | wc -l)
+    else
+        PACKAGE_COUNT="unknown"
+    fi
+else
+    PYTHON_VERSION="unknown"
+    PACKAGE_COUNT="unknown"
+fi
+
+echo -e "${BRIGHT_CYAN}Venv details:${RESET}"
+echo -e "  ${WHITE}Name:     $VENV_NAME${RESET}"
+echo -e "  ${WHITE}Location: $VENV_PATH${RESET}"
+echo -e "  ${WHITE}Python:   $PYTHON_VERSION${RESET}"
+echo -e "  ${WHITE}Packages: $PACKAGE_COUNT${RESET}"
+echo ""
+
+# OFFER BACKUP OPTION
+echo -e "${YELLOW}Create backup before deletion? (yes/no): ${RESET}"
+read -r CREATE_BACKUP
+
+if [ "$CREATE_BACKUP" == "yes" ] || [ "$CREATE_BACKUP" == "y" ]; then
+    BACKUP_PATH="${VENV_PATH}.backup.$(date +%s)"
+    echo -e "${GREEN}Creating backup...${RESET}"
+    cp -r "$VENV_PATH" "$BACKUP_PATH"
+    if [ $? -eq 0 ]; then
+        echo -e "${BRIGHT_GREEN}✓ Backup created: $BACKUP_PATH${RESET}"
+    else
+        echo -e "${BRIGHT_RED}✗ Failed to create backup${RESET}"
+        echo -e "${YELLOW}Continue with deletion anyway? (yes/no): ${RESET}"
+        read -r CONTINUE_ANYWAY
+        if [ "$CONTINUE_ANYWAY" != "yes" ] && [ "$CONTINUE_ANYWAY" != "y" ]; then
+            echo -e "${CYAN}Cancelled${RESET}"
+            exit 0
+        fi
+    fi
+    echo ""
+fi
+
+# FINAL CONFIRMATION
+echo -e "${BRIGHT_RED}⚠ FINAL CONFIRMATION ⚠${RESET}"
+echo -e "${RED}This will permanently delete: $VENV_PATH${RESET}"
+echo -e "${WHITE}Type the venv name '$VENV_NAME' to confirm deletion: ${RESET}"
+read -r CONFIRM
+
+if [ "$CONFIRM" != "$VENV_NAME" ]; then
+    echo -e "${BRIGHT_YELLOW}Confirmation failed. Deletion cancelled.${RESET}"
+    exit 0
+fi
+
+# DELETE
+echo -e "${GREEN}Deleting venv...${RESET}"
+rm -rf "$VENV_PATH"
+
+if [ $? -eq 0 ]; then
+    echo -e "${BRIGHT_GREEN}✓✓✓ Venv '$VENV_NAME' deleted successfully${RESET}"
+    
+    if [ -n "$BACKUP_PATH" ]; then
+        echo ""
+        echo -e "${CYAN}Backup available at: $BACKUP_PATH${RESET}"
+        echo -e "${WHITE}To restore: mv \"$BACKUP_PATH\" \"$VENV_PATH\"${RESET}"
+    fi
+else
+    echo -e "${BRIGHT_RED}✗ Failed to delete venv${RESET}"
+    exit 1
+fi
+
+echo ""
+echo -e "${BRIGHT_CYAN}Use 'vlist' to see remaining venvs${RESET}"

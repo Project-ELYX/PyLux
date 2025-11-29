@@ -1,0 +1,216 @@
+#!/usr/bin/env bash
+
+##! name: pybase-create
+##! desc: Create a new base environment in ~/pybase-envs/
+##! group: python
+##! <.ELYX.>
+
+# DEFINE ANSI COLOR CODES
+
+# Standard Text
+RED='\033[31m'
+GREEN='\033[32m'
+YELLOW='\033[33m'
+CYAN='\033[36m'
+WHITE='\033[37m'
+
+# Bright Text
+BRIGHT_RED='\033[91m'
+BRIGHT_GREEN='\033[92m'
+BRIGHT_YELLOW='\033[93m'
+BRIGHT_CYAN='\033[96m'
+BRIGHT_MAGENTA='\033[95m'
+
+# Reset
+RESET='\033[0m'
+
+# SET PATHS
+PYBASE_DIR="$HOME/pybase-envs"
+
+echo -e "${BRIGHT_MAGENTA}[*] +++ PYBASE ENV CREATOR +++${RESET}"
+echo ""
+
+# CREATE PYBASE DIR IF NOT EXISTS
+if [ ! -d "$PYBASE_DIR" ]; then
+    echo -e "${YELLOW}Creating ~/pybase-envs/ directory...${RESET}"
+    mkdir -p "$PYBASE_DIR"
+fi
+
+# GET ENV NAME
+echo -e "${WHITE}Enter base environment name: ${RESET}"
+read -r ENV_NAME
+
+if [ -z "$ENV_NAME" ]; then
+    echo -e "${BRIGHT_RED}Error: Environment name cannot be empty${RESET}"
+    exit 1
+fi
+
+ENV_PATH="$PYBASE_DIR/$ENV_NAME"
+
+# CHECK IF ALREADY EXISTS
+if [ -d "$ENV_PATH" ]; then
+    echo -e "${BRIGHT_RED}Error: Base environment '$ENV_NAME' already exists${RESET}"
+    exit 1
+fi
+
+echo ""
+
+# GET AVAILABLE PYTHON VERSIONS
+echo -e "${CYAN}Available Python versions:${RESET}"
+
+PYTHON_VERSIONS=()
+PYTHON_DISPLAY=()
+INDEX=1
+
+# Check /usr/local/bin for py* symlinks
+for symlink in /usr/local/bin/py[0-9]*; do
+    if [ -L "$symlink" ] && [ -x "$symlink" ]; then
+        SYMLINK_NAME=$(basename "$symlink")
+        VERSION=$("$symlink" --version 2>&1 | awk '{print $2}')
+        
+        # Mark pre-release versions
+        if [[ "$VERSION" =~ (a|b|rc) ]]; then
+            echo -e "  ${GREEN}$INDEX)${RESET} $SYMLINK_NAME (Python $VERSION) ${YELLOW}⚠ pre-release${RESET}"
+        else
+            echo -e "  ${GREEN}$INDEX)${RESET} $SYMLINK_NAME (Python $VERSION)"
+        fi
+        
+        PYTHON_VERSIONS+=("$symlink")
+        PYTHON_DISPLAY+=("$VERSION")
+        ((INDEX++))
+    fi
+done
+
+# Also check system python3
+if command -v python3 &> /dev/null; then
+    SYSTEM_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
+    echo -e "  ${GREEN}$INDEX)${RESET} python3 (Python $SYSTEM_VERSION - system)"
+    PYTHON_VERSIONS+=("python3")
+    PYTHON_DISPLAY+=("$SYSTEM_VERSION")
+fi
+
+if [ ${#PYTHON_VERSIONS[@]} -eq 0 ]; then
+    echo -e "${BRIGHT_RED}No Python installations found!${RESET}"
+    exit 1
+fi
+
+echo ""
+echo -e "${WHITE}Select Python version (enter number): ${RESET}"
+read -r PYTHON_CHOICE
+
+if ! [[ "$PYTHON_CHOICE" =~ ^[0-9]+$ ]] || [ "$PYTHON_CHOICE" -lt 1 ] || [ "$PYTHON_CHOICE" -gt ${#PYTHON_VERSIONS[@]} ]; then
+    echo -e "${BRIGHT_RED}Invalid selection${RESET}"
+    exit 1
+fi
+
+SELECTED_PYTHON="${PYTHON_VERSIONS[$((PYTHON_CHOICE-1))]}"
+PYTHON_VERSION="${PYTHON_DISPLAY[$((PYTHON_CHOICE-1))]}"
+
+echo -e "${GREEN}Selected: Python $PYTHON_VERSION${RESET}"
+echo ""
+
+# CREATE ENV
+echo -e "${GREEN}Creating base environment...${RESET}"
+"$SELECTED_PYTHON" -m venv "$ENV_PATH"
+
+if [ $? -ne 0 ]; then
+    echo -e "${BRIGHT_YELLOW}⚠ Standard venv creation failed, trying without pip...${RESET}"
+    "$SELECTED_PYTHON" -m venv --without-pip "$ENV_PATH"
+    
+    if [ $? -ne 0 ]; then
+        echo -e "${BRIGHT_RED}✗ Failed to create base environment${RESET}"
+        exit 1
+    fi
+    
+    # Manually install pip using get-pip.py
+    echo -e "${GREEN}Installing pip manually...${RESET}"
+    curl -sS https://bootstrap.pypa.io/get-pip.py | "$ENV_PATH/bin/python"
+    
+    if [ $? -ne 0 ]; then
+        echo -e "${BRIGHT_YELLOW}⚠ Failed to install pip automatically${RESET}"
+        echo -e "${YELLOW}You can install it later with:${RESET}"
+        echo -e "${WHITE}  curl https://bootstrap.pypa.io/get-pip.py | $ENV_PATH/bin/python${RESET}"
+    fi
+fi
+
+echo -e "${BRIGHT_GREEN}✓ Base environment created successfully!${RESET}"
+echo ""
+
+# OFFER TO INSTALL PACKAGES
+echo -e "${YELLOW}Install packages? (yes/no): ${RESET}"
+read -r INSTALL_PACKAGES
+
+if [ "$INSTALL_PACKAGES" == "yes" ] || [ "$INSTALL_PACKAGES" == "y" ]; then
+    echo ""
+    echo -e "${CYAN}Select package set:${RESET}"
+    echo -e "  ${GREEN}1)${RESET} Essential CLI tools (pip, setuptools, wheel, ipython, httpie)"
+    echo -e "  ${GREEN}2)${RESET} Development full (pytest, black, ruff, mypy, ipython, pre-commit)"
+    echo -e "  ${GREEN}3)${RESET} Data Science (numpy, pandas, matplotlib, scipy, jupyter, seaborn)"
+    echo -e "  ${GREEN}4)${RESET} Web Development (fastapi, uvicorn, requests, httpx, aiohttp, pydantic)"
+    echo -e "  ${GREEN}5)${RESET} ML/AI (torch, transformers, accelerate, datasets, scikit-learn)"
+    echo -e "  ${GREEN}6)${RESET} Custom (you'll enter packages manually)"
+    echo -e "  ${GREEN}7)${RESET} Skip"
+    echo ""
+    echo -e "${WHITE}Enter choice: ${RESET}"
+    read -r PACKAGE_CHOICE
+    
+    case $PACKAGE_CHOICE in
+        1)
+            PACKAGES="pip setuptools wheel ipython httpie rich"
+            ;;
+        2)
+            PACKAGES="pip setuptools wheel pytest black ruff mypy ipython pre-commit pylint"
+            ;;
+        3)
+            PACKAGES="pip setuptools wheel numpy pandas matplotlib scipy jupyter seaborn plotly"
+            ;;
+        4)
+            PACKAGES="pip setuptools wheel fastapi uvicorn requests httpx aiohttp pydantic python-dotenv"
+            ;;
+        5)
+            PACKAGES="pip setuptools wheel torch transformers accelerate datasets scikit-learn"
+            ;;
+        6)
+            echo -e "${WHITE}Enter packages (space-separated): ${RESET}"
+            read -r PACKAGES
+            ;;
+        7)
+            PACKAGES=""
+            ;;
+        *)
+            echo -e "${BRIGHT_RED}Invalid choice, skipping packages${RESET}"
+            PACKAGES=""
+            ;;
+    esac
+    
+    if [ -n "$PACKAGES" ]; then
+        echo ""
+        echo -e "${GREEN}Upgrading pip...${RESET}"
+        "$ENV_PATH/bin/pip" install --upgrade pip > /dev/null 2>&1
+        
+        echo -e "${GREEN}Installing packages: $PACKAGES${RESET}"
+        "$ENV_PATH/bin/pip" install $PACKAGES
+        
+        if [ $? -eq 0 ]; then
+            echo -e "${BRIGHT_GREEN}✓ Packages installed successfully${RESET}"
+        else
+            echo -e "${BRIGHT_YELLOW}⚠ Some packages may have failed to install${RESET}"
+        fi
+    fi
+fi
+
+echo ""
+echo -e "${BRIGHT_GREEN}======================================${RESET}"
+echo -e "${BRIGHT_GREEN}✓✓✓ Base environment created!${RESET}"
+echo -e "${BRIGHT_GREEN}======================================${RESET}"
+echo -e "${CYAN}Name:     $ENV_NAME${RESET}"
+echo -e "${CYAN}Location: $ENV_PATH${RESET}"
+echo -e "${CYAN}Python:   $PYTHON_VERSION${RESET}"
+echo ""
+echo -e "${BRIGHT_CYAN}Activate with:${RESET}"
+echo -e "${WHITE}  source $ENV_PATH/bin/activate${RESET}"
+echo ""
+if [ "$ENV_NAME" == "elyx" ]; then
+    echo -e "${BRIGHT_MAGENTA}💡 TIP: This is your base environment!${RESET}"
+    echo -e "${MAGENTA}   Use 'pybase-shell-integration' to set it as your default active env${RESET}"
+fi

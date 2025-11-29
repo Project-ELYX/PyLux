@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+
+##! name: venv-aliases-setup
+##! desc: Add convenient aliases for venv management to shell
+##! group: python
+##! <.ELYX.>
+
+# DEFINE ANSI COLOR CODES
+GREEN='\033[32m'
+CYAN='\033[36m'
+WHITE='\033[37m'
+BRIGHT_GREEN='\033[92m'
+BRIGHT_CYAN='\033[96m'
+BRIGHT_MAGENTA='\033[95m'
+BRIGHT_YELLOW='\033[93m'
+RESET='\033[0m'
+
+echo -e "${BRIGHT_MAGENTA}[*] +++ VENV ALIASES SETUP +++${RESET}"
+echo ""
+
+# Detect shell
+SHELL_NAME=$(basename "$SHELL")
+echo -e "${GREEN}Detected shell: $SHELL_NAME${RESET}"
+
+if [ "$SHELL_NAME" == "bash" ]; then
+    RC_FILE="$HOME/.bashrc"
+elif [ "$SHELL_NAME" == "zsh" ]; then
+    RC_FILE="$HOME/.zshrc"
+else
+    echo -e "${BRIGHT_RED}Unsupported shell: $SHELL_NAME${RESET}"
+    exit 1
+fi
+
+echo -e "${CYAN}Will modify: $RC_FILE${RESET}"
+echo ""
+
+# The aliases to add
+ALIAS_CODE='
+# === VENV MANAGEMENT ALIASES ===
+# Quick venv activation
+alias vactivate=". vactivate"
+alias base-switch=". base-switch"
+# === END VENV MANAGEMENT ALIASES ===
+'
+
+# Check if already exists
+if grep -q "VENV MANAGEMENT ALIASES" "$RC_FILE" 2>/dev/null; then
+    echo -e "${BRIGHT_YELLOW}Aliases already exist in $RC_FILE${RESET}"
+    exit 0
+fi
+
+echo "$ALIAS_CODE" >> "$RC_FILE"
+
+echo -e "${BRIGHT_GREEN}✓ Aliases added!${RESET}"
+echo ""
+echo -e "${BRIGHT_CYAN}New commands available:${RESET}"
+echo -e "  ${WHITE}vactivate <name>${RESET}     - Activate venv from ~/venvs/"
+echo -e "  ${WHITE}base-switch <name>${RESET}   - Switch to base env from ~/pybase-envs/"
+echo ""
+echo -e "${BRIGHT_YELLOW}⚠ Restart your shell or run:${RESET}"
+echo -e "${WHITE}  source $RC_FILE${RESET}"

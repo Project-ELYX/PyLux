@@ -1,0 +1,220 @@
+# PyLux
+
+**Python environment management without the bloat.**
+
+Born from frustration with Miniconda's takeover and bloat, PyLux is a lightweight, powerful toolkit for managing Python installations and virtual environments. No package manager dependencies, no conda channels, just clean bash scripts and full control.
+
+## Why PyLux?
+
+**The Problem:**
+- Conda is massive and takes over your system
+- Single monolithic base environment gets messy
+- No easy way to compile Python from source with custom configurations
+- Broken venvs are a pain to fix
+- Too much typing to activate environments
+
+**The Solution:**
+PyLux gives you:
+- 🔧 **Source compilation** - Install any Python version (including alphas/betas) from source with optimizations
+- 🎯 **Smart venv management** - Create, list, repair, and delete venvs with ease
+- ⭐ **Persistent base environment** - Conda-style always-active base env without the bloat
+- 🚀 **Quick activation** - Short commands to switch environments instantly
+- 🔍 **Diagnostics** - See what's broken and fix it automatically
+- 💪 **Full control** - Pure bash, no hidden magic, easy to customize
+
+## Features
+
+### Source Management
+- **py-altinstall** - Compile and install Python from source with optimizations (LTO, PGO)
+- **py-list** - List all installed Python versions with details
+- Supports stable releases AND alpha/beta/RC versions
+- Automatic symlink creation (py310, py311, py312, etc.)
+- Smart pre-release detection and warnings
+
+### Virtual Environment Management
+- **venv-create** - Quick venv creator with Python version picker and package presets
+- **venv-list** - List all venvs with diagnostics (Python version, packages, broken status)
+- **venv-repair** - Resurrect broken venvs by extracting packages from site-packages
+- **venv-repair-local** - Repair in-project venvs
+- **vactivate** - Quick activation: `vactivate myproject` instead of `source ~/venvs/myproject/bin/activate`
+- **vdel** - Safe deletion with confirmation and optional backup
+
+### Base Environment Management (Conda-style)
+- **pybase-create** - Create specialized base environments (dev, data-science, ml, etc.)
+- **pybase-list** - List all base environments
+- **pybase-shell-integration** - Auto-activate base env on shell start
+- **base-switch** - Quickly switch between base environments
+- `deactivate` returns to base env (not fully off!)
+- `deactivate_all` for full deactivation
+
+## Installation
+
+```bash
+# Clone the repo
+git clone https://github.com/yourusername/PyLux.git
+cd PyLux
+
+# Run the installer
+./install.sh
+
+# Reload your shell
+source ~/.bashrc  # or ~/.zshrc
+```
+
+## Quick Start
+
+### 1. Install a Python version
+```bash
+py-altinstall
+# Follow prompts to install Python 3.13, 3.12, etc.
+# Can even install alpha/beta releases!
+```
+
+### 2. Create your base environment
+```bash
+pybase-create
+# Name it 'elyx' (or whatever you want)
+# Choose Python version
+# Install packages
+```
+
+### 3. Set up persistent base env
+```bash
+pybase-shell-integration
+source ~/.zshrc
+# Now you'll always have your base env active!
+```
+
+### 4. Create project venvs
+```bash
+venv-create
+# Choose location (~/venvs/ or current directory)
+# Pick Python version
+# Install package presets or custom packages
+```
+
+### 5. Use the shortcuts
+```bash
+vactivate myproject     # Activate ~/venvs/myproject
+deactivate              # Return to base env
+base-switch ml-tools    # Switch to ~/pybase-envs/ml-tools
+venv-list               # See all your venvs
+py-list                 # See all installed Pythons
+```
+
+## Workflow Example
+
+```bash
+# Your shell starts with (elyx) base env active
+(elyx) $ vactivate web-scraper
+(web-scraper) $ # Work on project
+(web-scraper) $ deactivate
+(elyx) $ # Back to base env
+
+# Got a broken venv from old Python install?
+(elyx) $ venv-repair
+# Select broken venv, it extracts packages and rebuilds!
+
+# Want bleeding edge Python?
+(elyx) $ py-altinstall
+# Say yes to alpha/beta versions, install Python 3.15.0a2
+```
+
+## How It Works
+
+**Source Management:**
+- Downloads Python source from python.org
+- Compiles with optimizations (--enable-optimizations, --with-lto)
+- Installs to `/opt/python-lab/X.Y.Z/`
+- Creates symlinks like `py313` in `/usr/local/bin/`
+
+**Venv Recovery:**
+- When venvs break (Python deleted, conda removed, etc.), packages are still in `lib/pythonX.Y/site-packages/`
+- PyLux scans `.dist-info` directories to extract package names
+- Rebuilds venv with new Python and reinstalls packages
+- Smart version matching for seamless migration
+
+**Base Environment:**
+- Shell integration auto-activates base env on startup
+- Overrides `deactivate` to return to base instead of fully deactivating
+- Separate `deactivate_all` command for full shutdown
+- Feels like conda but with zero bloat
+
+## Requirements
+
+- Linux (tested on Ubuntu/Debian, should work on most distros)
+- Bash or Zsh
+- Build tools for compiling Python: `gcc`, `make`, `libssl-dev`, `zlib1g-dev`, `libbz2-dev`, etc.
+- `curl` or `wget`
+
+## Directory Structure
+
+```
+PyLux/
+├── source-management/     # Python compilation and installation
+│   ├── py-altinstall
+│   └── py-list
+├── venv-management/       # Virtual environment tools
+│   ├── venv-create
+│   ├── venv-list
+│   ├── venv-repair
+│   ├── venv-repair-local
+│   ├── vactivate
+│   ├── vdel
+│   └── venv-aliases-setup
+└── pybase-management/     # Base environment tools
+    ├── pybase-create
+    ├── pybase-list
+    ├── pybase-shell-integration
+    └── base-switch
+```
+
+## Philosophy
+
+**Keep It Simple:**
+- Pure bash scripts, no complex dependencies
+- Each tool does one thing well
+- Easy to read, easy to modify
+
+**Full Control:**
+- You decide what gets installed and where
+- No hidden configuration files
+- No package manager lock-in
+
+**Recover from Anything:**
+- Migrated from conda? Repair broken venvs
+- Deleted Python? Rebuild seamlessly
+- Packages still exist? We'll find them
+
+## FAQ
+
+**Q: Why not just use conda?**
+A: Conda is great but it's heavy, takes over your system, and the base environment becomes a dumping ground. PyLux gives you the workflow without the bloat.
+
+**Q: Why not pyenv?**
+A: Pyenv is excellent but PyLux adds venv management, base environments, and recovery tools in one cohesive system.
+
+**Q: Can I use this alongside conda/pyenv?**
+A: Yes! PyLux installs to `/opt/python-lab/` and uses its own paths. Just don't let conda's auto-activation conflict with PyLux's base env.
+
+**Q: Is this production-ready?**
+A: It's stable and tested on personal systems. Use at your own discretion. Always backup important environments.
+
+**Q: Can I install alpha/beta Python versions?**
+A: YES! That's one of the best features. Try Python 3.15 alphas before anyone else.
+
+## Contributing
+
+Built in a caffeine-fueled 2 AM coding session. Contributions welcome!
+
+## License
+
+MIT - Do whatever you want with it
+
+## Credits
+
+Created by someone who got tired of conda's shit and decided to build something better.
+
+---
+
+**PyLux** - Light up your Python workflow ✨

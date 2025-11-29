@@ -1,0 +1,351 @@
+#!/usr/bin/env bash
+
+##! name: venv-repair-local
+##! desc: Repair broken virtual environment in current project directory
+##! group: python
+##! <.ELYX.>
+
+# DEFINE ANSI COLOR CODES
+
+# Standard Text
+RED='\033[31m'
+GREEN='\033[32m'
+YELLOW='\033[33m'
+CYAN='\033[36m'
+WHITE='\033[37m'
+
+# Bright Text
+BRIGHT_RED='\033[91m'
+BRIGHT_GREEN='\033[92m'
+BRIGHT_YELLOW='\033[93m'
+BRIGHT_CYAN='\033[96m'
+BRIGHT_MAGENTA='\033[95m'
+
+# Reset
+RESET='\033[0m'
+
+echo -e "${BRIGHT_MAGENTA}[*] +++ LOCAL VENV REPAIR WIZARD +++${RESET}"
+echo ""
+
+# COMMON VENV NAMES
+COMMON_VENV_NAMES=("venv" ".venv" "env" ".env" "virtualenv")
+
+# FIND VENVS IN CURRENT DIRECTORY
+FOUND_VENVS=()
+
+echo -e "${CYAN}Scanning current directory for virtual environments...${RESET}"
+
+for venv_name in "${COMMON_VENV_NAMES[@]}"; do
+    if [ -d "$venv_name" ]; then
+        FOUND_VENVS+=("$venv_name")
+        echo -e "  ${YELLOW}Found: $venv_name${RESET}"
+    fi
+done
+
+# Also check for any other directories with bin/activate
+for dir in */; do
+    dir_name=$(basename "$dir")
+    if [ -f "$dir/bin/activate" ] || [ -f "$dir/Scripts/activate" ]; then
+        # Check if not already in list
+        if [[ ! " ${FOUND_VENVS[@]} " =~ " ${dir_name} " ]]; then
+            FOUND_VENVS+=("$dir_name")
+            echo -e "  ${YELLOW}Found: $dir_name${RESET}"
+        fi
+    fi
+done
+
+if [ ${#FOUND_VENVS[@]} -eq 0 ]; then
+    echo -e "${BRIGHT_RED}No virtual environments found in current directory${RESET}"
+    echo -e "${YELLOW}Looked for: venv, .venv, env, .env, virtualenv${RESET}"
+    exit 0
+fi
+
+echo ""
+
+# SELECT VENV TO REPAIR
+if [ ${#FOUND_VENVS[@]} -eq 1 ]; then
+    SELECTED_VENV="${FOUND_VENVS[0]}"
+    echo -e "${GREEN}Found 1 venv: $SELECTED_VENV${RESET}"
+else
+    echo -e "${CYAN}Multiple venvs found. Select one to repair:${RESET}"
+    for i in "${!FOUND_VENVS[@]}"; do
+        echo -e "  ${GREEN}$((i+1)))${RESET} ${FOUND_VENVS[$i]}"
+    done
+    echo ""
+    echo -e "${WHITE}Enter number: ${RESET}"
+    read -r VENV_CHOICE
+    
+    if ! [[ "$VENV_CHOICE" =~ ^[0-9]+$ ]] || [ "$VENV_CHOICE" -lt 1 ] || [ "$VENV_CHOICE" -gt ${#FOUND_VENVS[@]} ]; then
+        echo -e "${BRIGHT_RED}Invalid selection${RESET}"
+        exit 1
+    fi
+    
+    SELECTED_VENV="${FOUND_VENVS[$((VENV_CHOICE-1))]}"
+fi
+
+VENV_PATH="./$SELECTED_VENV"
+
+echo ""
+echo -e "${BRIGHT_CYAN}Analyzing: $SELECTED_VENV${RESET}"
+echo ""
+
+# CHECK IF VENV IS ACTUALLY BROKEN
+PYTHON_BIN="$VENV_PATH/bin/python"
+ACTIVATE_SCRIPT="$VENV_PATH/bin/activate"
+
+IS_BROKEN=false
+if [ ! -f "$ACTIVATE_SCRIPT" ] || [ ! -f "$PYTHON_BIN" ]; then
+    IS_BROKEN=true
+fi
+
+if [ "$IS_BROKEN" = false ]; then
+    # Try to run python
+    "$PYTHON_BIN" --version > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        IS_BROKEN=true
+    fi
+fi
+
+if [ "$IS_BROKEN" = false ]; then
+    echo -e "${BRIGHT_GREEN}This venv appears to be working fine!${RESET}"
+    "$PYTHON_BIN" --version
+    echo ""
+    echo -e "${YELLOW}Do you still want to repair/recreate it? (yes/no): ${RESET}"
+    read -r FORCE_REPAIR
+    
+    if [ "$FORCE_REPAIR" != "yes" ] && [ "$FORCE_REPAIR" != "y" ]; then
+        echo -e "${CYAN}Exiting...${RESET}"
+        exit 0
+    fi
+fi
+
+# EXTRACT PACKAGE LIST
+REQUIREMENTS_FILE="/tmp/venv_repair_local_requirements.txt"
+OLD_PYTHON_VERSION=""
+
+echo -e "${YELLOW}Attempting to extract package list...${RESET}"
+
+# Method 1: Try pip freeze if possible
+EXTRACTED=false
+if [ -f "$VENV_PATH/bin/pip" ]; then
+    "$VENV_PATH/bin/pip" freeze > "$REQUIREMENTS_FILE" 2>/dev/null
+    if [ $? -eq 0 ] && [ -s "$REQUIREMENTS_FILE" ]; then
+        PACKAGE_COUNT=$(wc -l < "$REQUIREMENTS_FILE")
+        echo -e "${GREEN}✓ Extracted $PACKAGE_COUNT packages via pip freeze${RESET}"
+        EXTRACTED=true
+    fi
+fi
+
+# Method 2: Extract from lib/pythonX.X/site-packages/*.dist-info
+if [ "$EXTRACTED" = false ]; then
+    echo -e "${YELLOW}Trying to extract from site-packages directory...${RESET}"
+    
+    # Find the python version directory
+    LIB_DIR="$VENV_PATH/lib"
+    if [ -d "$LIB_DIR" ]; then
+        PYTHON_LIB_DIR=$(find "$LIB_DIR" -maxdepth 1 -type d -name "python*" | head -n 1)
+        
+        if [ -n "$PYTHON_LIB_DIR" ]; then
+            OLD_PYTHON_VERSION=$(basename "$PYTHON_LIB_DIR" | sed 's/python//')
+            SITE_PACKAGES="$PYTHON_LIB_DIR/site-packages"
+            
+            echo -e "${CYAN}  Found old venv used: Python $OLD_PYTHON_VERSION${RESET}"
+            
+            if [ -d "$SITE_PACKAGES" ]; then
+                # Extract package names from .dist-info directories
+                find "$SITE_PACKAGES" -maxdepth 1 -type d -name "*.dist-info" -exec basename {} \; | \
+                    sed 's/-[0-9].*//' | \
+                    grep -v "^pip$" | \
+                    grep -v "^setuptools$" | \
+                    sort -u > "$REQUIREMENTS_FILE"
+                
+                if [ -s "$REQUIREMENTS_FILE" ]; then
+                    PACKAGE_COUNT=$(wc -l < "$REQUIREMENTS_FILE")
+                    echo -e "${GREEN}✓ Extracted $PACKAGE_COUNT packages from site-packages${RESET}"
+                    EXTRACTED=true
+                fi
+            fi
+        fi
+    fi
+fi
+
+if [ "$EXTRACTED" = false ]; then
+    rm -f "$REQUIREMENTS_FILE"
+    echo -e "${YELLOW}⚠ No packages found, will create fresh venv${RESET}"
+fi
+
+echo ""
+
+# GET AVAILABLE PYTHON VERSIONS
+echo -e "${CYAN}Available Python versions:${RESET}"
+
+PYTHON_VERSIONS=()
+PYTHON_DISPLAY=()
+INDEX=1
+
+# Check /usr/local/bin for py* symlinks
+for symlink in /usr/local/bin/py[0-9]*; do
+    if [ -L "$symlink" ] && [ -x "$symlink" ]; then
+        SYMLINK_NAME=$(basename "$symlink")
+        VERSION=$("$symlink" --version 2>&1 | awk '{print $2}')
+        echo -e "  ${GREEN}$INDEX)${RESET} $SYMLINK_NAME (Python $VERSION)"
+        PYTHON_VERSIONS+=("$symlink")
+        PYTHON_DISPLAY+=("$VERSION")
+        ((INDEX++))
+    fi
+done
+
+# Also check system python3
+if command -v python3 &> /dev/null; then
+    SYSTEM_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
+    echo -e "  ${GREEN}$INDEX)${RESET} python3 (Python $SYSTEM_VERSION - system)"
+    PYTHON_VERSIONS+=("python3")
+    PYTHON_DISPLAY+=("$SYSTEM_VERSION")
+fi
+
+if [ ${#PYTHON_VERSIONS[@]} -eq 0 ]; then
+    echo -e "${BRIGHT_RED}No Python installations found!${RESET}"
+    exit 1
+fi
+
+echo ""
+
+# CHOOSE PYTHON VERSION
+SELECTED_PYTHON=""
+
+if [ -n "$OLD_PYTHON_VERSION" ]; then
+    # Try to find matching Python version
+    MATCHED_INDEX=-1
+    for i in "${!PYTHON_DISPLAY[@]}"; do
+        # Check if version matches (e.g., 3.12.* matches 3.12)
+        if [[ "${PYTHON_DISPLAY[$i]}" == "$OLD_PYTHON_VERSION"* ]]; then
+            MATCHED_INDEX=$i
+            break
+        fi
+    done
+    
+    echo -e "${CYAN}Original venv used Python $OLD_PYTHON_VERSION${RESET}"
+    echo ""
+    echo -e "${YELLOW}Choose repair mode:${RESET}"
+    echo -e "  ${GREEN}1)${RESET} Recreate with same version (Python $OLD_PYTHON_VERSION)"
+    echo -e "  ${GREEN}2)${RESET} Upgrade to different Python version"
+    echo ""
+    echo -e "${WHITE}Enter choice (1 or 2): ${RESET}"
+    read -r REPAIR_MODE
+    
+    if [ "$REPAIR_MODE" == "1" ]; then
+        if [ $MATCHED_INDEX -ge 0 ]; then
+            SELECTED_PYTHON="${PYTHON_VERSIONS[$MATCHED_INDEX]}"
+            echo -e "${GREEN}Using matched Python ${PYTHON_DISPLAY[$MATCHED_INDEX]}${RESET}"
+        else
+            echo -e "${BRIGHT_YELLOW}Warning: Python $OLD_PYTHON_VERSION not found!${RESET}"
+            echo -e "${YELLOW}Available Python versions:${RESET}"
+            for i in "${!PYTHON_VERSIONS[@]}"; do
+                echo -e "  ${GREEN}$((i+1)))${RESET} Python ${PYTHON_DISPLAY[$i]}"
+            done
+            echo ""
+            echo -e "${WHITE}Select Python version (enter number): ${RESET}"
+            read -r PYTHON_CHOICE
+            
+            if ! [[ "$PYTHON_CHOICE" =~ ^[0-9]+$ ]] || [ "$PYTHON_CHOICE" -lt 1 ] || [ "$PYTHON_CHOICE" -gt ${#PYTHON_VERSIONS[@]} ]; then
+                echo -e "${BRIGHT_RED}Invalid selection${RESET}"
+                exit 1
+            fi
+            
+            SELECTED_PYTHON="${PYTHON_VERSIONS[$((PYTHON_CHOICE-1))]}"
+        fi
+    else
+        echo -e "${YELLOW}Available Python versions:${RESET}"
+        for i in "${!PYTHON_VERSIONS[@]}"; do
+            echo -e "  ${GREEN}$((i+1)))${RESET} Python ${PYTHON_DISPLAY[$i]}"
+        done
+        echo ""
+        echo -e "${WHITE}Select Python version (enter number): ${RESET}"
+        read -r PYTHON_CHOICE
+        
+        if ! [[ "$PYTHON_CHOICE" =~ ^[0-9]+$ ]] || [ "$PYTHON_CHOICE" -lt 1 ] || [ "$PYTHON_CHOICE" -gt ${#PYTHON_VERSIONS[@]} ]; then
+            echo -e "${BRIGHT_RED}Invalid selection${RESET}"
+            exit 1
+        fi
+        
+        SELECTED_PYTHON="${PYTHON_VERSIONS[$((PYTHON_CHOICE-1))]}"
+    fi
+else
+    # No old version detected, just ask for Python version
+    echo -e "${YELLOW}Available Python versions:${RESET}"
+    for i in "${!PYTHON_VERSIONS[@]}"; do
+        echo -e "  ${GREEN}$((i+1)))${RESET} Python ${PYTHON_DISPLAY[$i]}"
+    done
+    echo ""
+    echo -e "${WHITE}Select Python version (enter number): ${RESET}"
+    read -r PYTHON_CHOICE
+    
+    if ! [[ "$PYTHON_CHOICE" =~ ^[0-9]+$ ]] || [ "$PYTHON_CHOICE" -lt 1 ] || [ "$PYTHON_CHOICE" -gt ${#PYTHON_VERSIONS[@]} ]; then
+        echo -e "${BRIGHT_RED}Invalid selection${RESET}"
+        exit 1
+    fi
+    
+    SELECTED_PYTHON="${PYTHON_VERSIONS[$((PYTHON_CHOICE-1))]}"
+fi
+
+PYTHON_VERSION=$("$SELECTED_PYTHON" --version 2>&1 | awk '{print $2}')
+echo -e "${BRIGHT_GREEN}Selected: Python $PYTHON_VERSION${RESET}"
+echo ""
+
+# BACKUP AND REMOVE OLD VENV
+echo -e "${YELLOW}Removing old venv...${RESET}"
+BACKUP_PATH="${VENV_PATH}.backup.$(date +%s)"
+mv "$VENV_PATH" "$BACKUP_PATH"
+
+if [ $? -ne 0 ]; then
+    echo -e "${BRIGHT_RED}✗ Failed to backup old venv${RESET}"
+    exit 1
+fi
+
+echo -e "${GREEN}✓ Old venv backed up to: $BACKUP_PATH${RESET}"
+
+# CREATE NEW VENV
+echo -e "${GREEN}Creating new venv with Python $PYTHON_VERSION...${RESET}"
+"$SELECTED_PYTHON" -m venv "$VENV_PATH"
+
+if [ $? -ne 0 ]; then
+    echo -e "${BRIGHT_RED}✗ Failed to create new venv${RESET}"
+    echo -e "${YELLOW}Restoring backup...${RESET}"
+    mv "$BACKUP_PATH" "$VENV_PATH"
+    exit 1
+fi
+
+echo -e "${GREEN}✓ New venv created${RESET}"
+
+# RESTORE PACKAGES IF WE HAVE THEM
+if [ -f "$REQUIREMENTS_FILE" ]; then
+    echo -e "${GREEN}Restoring packages...${RESET}"
+    "$VENV_PATH/bin/pip" install --upgrade pip > /dev/null 2>&1
+    "$VENV_PATH/bin/pip" install -r "$REQUIREMENTS_FILE"
+    
+    if [ $? -eq 0 ]; then
+        echo -e "${BRIGHT_GREEN}✓ Packages restored successfully${RESET}"
+    else
+        echo -e "${BRIGHT_YELLOW}⚠ Some packages may have failed to install${RESET}"
+    fi
+    
+    rm -f "$REQUIREMENTS_FILE"
+fi
+
+# ASK ABOUT REMOVING BACKUP
+echo ""
+echo -e "${YELLOW}Delete backup at $BACKUP_PATH? (yes/no): ${RESET}"
+read -r DELETE_BACKUP
+
+if [ "$DELETE_BACKUP" == "yes" ] || [ "$DELETE_BACKUP" == "y" ]; then
+    rm -rf "$BACKUP_PATH"
+    echo -e "${GREEN}✓ Backup deleted${RESET}"
+else
+    echo -e "${YELLOW}Backup kept at: $BACKUP_PATH${RESET}"
+fi
+
+echo ""
+echo -e "${BRIGHT_GREEN}======================================${RESET}"
+echo -e "${BRIGHT_GREEN}✓✓✓ $SELECTED_VENV repaired successfully!${RESET}"
+echo -e "${BRIGHT_GREEN}======================================${RESET}"
+echo -e "${CYAN}Activate with: source $SELECTED_VENV/bin/activate${RESET}"

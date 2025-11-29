@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+
+##! name: base-switch
+##! desc: Quick switch to a base environment from ~/pybase-envs/
+##! group: python
+##! <.ELYX.>
+
+# This script needs to be sourced to work properly
+if [ "${BASH_SOURCE[0]}" == "${0}" ]; then
+    echo "Error: This script must be sourced, not executed"
+    echo "Usage: source base-switch <base-env-name>"
+    echo "   or: . base-switch <base-env-name>"
+    exit 1
+fi
+
+PYBASE_DIR="$HOME/pybase-envs"
+
+if [ -z "$1" ]; then
+    echo "Usage: base-switch <base-env-name>"
+    echo ""
+    echo "Available base environments:"
+    if [ -d "$PYBASE_DIR" ]; then
+        for env in "$PYBASE_DIR"/*; do
+            if [ -d "$env" ]; then
+                name=$(basename "$env")
+                if [ "$name" == "elyx" ]; then
+                    echo "  ⭐ $name (default base)"
+                else
+                    echo "  - $name"
+                fi
+            fi
+        done
+    else
+        echo "  (none found in $PYBASE_DIR)"
+    fi
+    return 1
+fi
+
+ENV_NAME="$1"
+ENV_PATH="$PYBASE_DIR/$ENV_NAME"
+
+if [ ! -d "$ENV_PATH" ]; then
+    echo "Error: Base environment '$ENV_NAME' not found at $ENV_PATH"
+    return 1
+fi
+
+if [ ! -f "$ENV_PATH/bin/activate" ]; then
+    echo "Error: $ENV_PATH/bin/activate not found"
+    return 1
+fi
+
+# Deactivate current env if active
+if [ -n "$VIRTUAL_ENV" ]; then
+    deactivate 2>/dev/null || true
+fi
+
+source "$ENV_PATH/bin/activate"
+export PYBASE_BASE_ACTIVE=1
+echo "Switched to base environment: $ENV_NAME"

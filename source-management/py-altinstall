@@ -1,0 +1,260 @@
+#!/usr/bin/env bash
+
+##! name: py-altinstall
+##! desc: Wizard to altinstall Python versions from source for clean management.
+##! group: python
+##! <.ELYX.>
+
+# DEFINE ANSI COLOR CODES
+
+# Standard Text
+BLACK='\033[30m'
+RED='\033[31m'
+GREEN='\033[32m'
+YELLOW='\033[33m'
+BLUE='\033[34m'
+MAGENTA='\033[35m'
+CYAN='\033[36m'
+WHITE='\033[37m'
+
+# Bright Text
+BRIGHT_BLACK='\033[90m'
+BRIGHT_RED='\033[91m'
+BRIGHT_GREEN='\033[92m'
+BRIGHT_YELLOW='\033[93m'
+BRIGHT_BLUE='\033[94m'
+BRIGHT_MAGENTA='\033[95m'
+BRIGHT_CYAN='\033[96m'
+BRIGHT_WHITE='\033[97m'
+
+# Backgrounds
+BG_BLACK='\033[40m'
+BG_RED='\033[41m'
+BG_GREEN='\033[42m'
+BG_YELLOW='\033[43m'
+BG_BLUE='\033[44m'
+BG_MAGENTA='\033[45m'
+BG_CYAN='\033[46m'
+BG_WHITE='\033[47m'
+
+# SET PATHS
+
+PREFIX_PATH="/opt/python-lab/"
+
+echo -e "${MAGENTA}[*] +++ PYTHON ALTINSTALL WIZARD +++${RETURN}"
+echo -e "${YELLOW}This script is made for clean management of altinstalled Python versions compiled from source.${RETURN}"
+
+# ASK IF THE USER KNOWS THE VERSION THEY WISH TO INSTALL OR IF THEY WOULD LIKE A LIST OF AVAILABLE VERSIONS
+echo -n -e "${CYAN}Do you know which Python version you want to install? (yes/no): ${RESET}"
+read KNOWS_VERSION
+
+if [ "$KNOWS_VERSION" == "no" ] || [ "$KNOWS_VERSION" == "n" ]; then
+    echo -e "${GREEN}Fetching available Python versions from python.org...${RESET}"
+    echo ""
+    
+    # Ask if they want stable or include pre-releases
+    echo -n -e "${YELLOW}Include alpha/beta/RC versions? (yes/no): ${RESET}"
+    read INCLUDE_PRERELEASE
+    
+    echo -e "${GREEN}Fetching versions...${RESET}"
+    
+    if [ "$INCLUDE_PRERELEASE" == "yes" ] || [ "$INCLUDE_PRERELEASE" == "y" ]; then
+        # Fetch stable versions first
+        STABLE_VERSIONS=$(curl -s https://www.python.org/ftp/python/ | \
+            grep -oP '(?<=href=")[0-9]+\.[0-9]+\.[0-9]+(?=/")' | \
+            sort -V -r | \
+            head -n 20)
+        
+        # Check inside 3.14.0 and 3.15.0 directories for pre-release files
+        PRERELEASE_VERSIONS=""
+        for dir in "3.14.0" "3.15.0"; do
+            FOUND=$(curl -s "https://www.python.org/ftp/python/$dir/" 2>/dev/null | \
+                grep -oP "Python-\K[0-9]+\.[0-9]+\.[0-9]+(a[0-9]+|b[0-9]+|rc[0-9]+)(?=\.tgz)" | \
+                sort -V -r)
+            if [ -n "$FOUND" ]; then
+                PRERELEASE_VERSIONS="$PRERELEASE_VERSIONS"$'\n'"$FOUND"
+            fi
+        done
+        
+        # Combine, deduplicate, and sort
+        AVAILABLE_VERSIONS=$(echo -e "$PRERELEASE_VERSIONS\n$STABLE_VERSIONS" | grep -v '^$' | sort -V -r | uniq | head -n 30)
+    else
+        # Fetch stable versions only
+        AVAILABLE_VERSIONS=$(curl -s https://www.python.org/ftp/python/ | \
+            grep -oP '(?<=href=")[0-9]+\.[0-9]+\.[0-9]+(?=/")' | \
+            sort -V -r | \
+            head -n 20)
+    fi
+    
+    if [ -z "$AVAILABLE_VERSIONS" ]; then
+        echo -e "${BRIGHT_RED}Failed to fetch available versions. Please enter manually.${RESET}"
+    else
+        echo -e "${BRIGHT_CYAN}Available Python versions:${RESET}"
+        if [ "$INCLUDE_PRERELEASE" == "yes" ] || [ "$INCLUDE_PRERELEASE" == "y" ]; then
+            echo -e "${BRIGHT_YELLOW}(⚠ Pre-release versions marked with a/b/rc)${RESET}"
+        fi
+        echo "$AVAILABLE_VERSIONS" | nl -w2 -s'. '
+        echo ""
+    fi
+fi
+
+# ASK PYTHON VERSIONS
+
+echo -n -e "${WHITE}Please enter the Python version (e.g 3.12.7 or 3.15.0a2): ${RESET}"
+read PYTHON_VERSION
+
+echo -n -e "${GREEN}Default path is /opt/python-lab/. "
+
+# CHECK IF IT'S A PRE-RELEASE VERSION
+if [[ "$PYTHON_VERSION" =~ [a-z] ]]; then
+    echo ""
+    echo -e "${BRIGHT_YELLOW}⚠ WARNING: Installing pre-release version $PYTHON_VERSION${RESET}"
+    echo -e "${YELLOW}Pre-release versions are:${RESET}"
+    echo -e "${YELLOW}  - Not recommended for production${RESET}"
+    echo -e "${YELLOW}  - May have bugs and unstable APIs${RESET}"
+    echo -e "${YELLOW}  - Some packages may not be compatible${RESET}"
+    echo ""
+    echo -n -e "${WHITE}Continue with installation? (yes/no): ${RESET}"
+    read CONTINUE_PRERELEASE
+    
+    if [ "$CONTINUE_PRERELEASE" != "yes" ] && [ "$CONTINUE_PRERELEASE" != "y" ]; then
+        echo -e "${CYAN}Installation cancelled.${RESET}"
+        exit 0
+    fi
+fi
+
+
+# DOWNLOAD AND EXTRACT PYTHON SOURCE CODE USING WGET
+
+echo -e "${GREEN}Downloading Python $PYTHON_VERSION...${RESET}"
+cd /tmp
+
+# Determine the directory path for pre-release versions
+# Pre-releases are stored under base version (e.g., 3.15.0a2 is in /python/3.15.0/)
+if [[ "$PYTHON_VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+)(a|b|rc) ]]; then
+    BASE_VERSION="${BASH_REMATCH[1]}"
+    DOWNLOAD_URL="https://www.python.org/ftp/python/$BASE_VERSION/Python-$PYTHON_VERSION.tgz"
+else
+    DOWNLOAD_URL="https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tgz"
+fi
+
+wget "$DOWNLOAD_URL"
+
+if [ $? -ne 0 ]; then
+    echo -e "${BRIGHT_RED}Failed to download Python $PYTHON_VERSION. Please check the version and try again.${RESET}"
+    exit 1
+fi
+
+echo -e "${GREEN}Extracting Python source code...${RESET}"
+tar -xzf Python-$PYTHON_VERSION.tgz
+
+if [ $? -ne 0 ]; then
+    echo -e "${BRIGHT_RED}Failed to extract Python source code. Please try again.${RESET}"
+    exit 1
+fi
+
+cd Python-$PYTHON_VERSION
+INSTALL_PREFIX="$PREFIX_PATH$PYTHON_VERSION"
+
+# CONFIGURE, MAKE, AND ALTINSTALL PYTHON
+echo -e "${GREEN}Configuring Python build...${RESET}"
+./configure \
+    --prefix="$INSTALL_PREFIX" \
+    --enable-optimizations \
+    --with-lto \
+    --enable-shared
+
+if [ $? -ne 0 ]; then
+    echo -e "${BRIGHT_RED}Configuration failed. Please check the output and try again.${RESET}"
+    exit 1
+fi
+
+echo -e "${GREEN}Compiling Python...${RESET}"
+make -j$(nproc)
+
+if [ $? -ne 0 ]; then
+    echo -e "${BRIGHT_RED}Build failed. Please check the output and try again.${RESET}"
+    exit 1
+fi
+
+echo -e "${GREEN}Installing Python...${RESET}"
+sudo make altinstall
+
+if [ $? -ne 0 ]; then
+    echo -e "${BRIGHT_RED}Installation failed. Please check the output and try again.${RESET}"
+    exit 1
+fi
+
+echo -e "${BRIGHT_GREEN}Python $PYTHON_VERSION installed successfully at $INSTALL_PREFIX${RESET}"
+
+# REGISTER SHARED LIBRARY PATH
+echo -e "${GREEN}Registering shared library path...${RESET}"
+echo "$INSTALL_PREFIX/lib" | sudo tee /etc/ld.so.conf.d/python-$PYTHON_VERSION.conf
+
+if [ $? -ne 0 ]; then
+    echo -e "${BRIGHT_RED}Failed to register shared library paths. Please check the logs for more information.${RESET}"
+    exit 1
+fi
+
+sudo ldconfig
+
+if [ $? -ne 0 ]; then
+    echo -e "${BRIGHT_RED}Failed to update the dynamic linker cache. Please check the logs for more information.${RESET}"
+    exit 1
+fi
+
+echo -e "${BRIGHT_GREEN}Shared library paths registered successfully.${RESET}"
+
+# SYMLINK PYTHON BINARY TO /usr/local/bin
+# Extract major.minor version (e.g., "3.12.7" -> "312")
+SYMLINK_VERSION=$(echo $PYTHON_VERSION | sed 's/\.//g' | cut -c1-3)
+SYMLINK_NAME="py$SYMLINK_VERSION"
+
+# For the actual binary name, pre-releases use base version without alpha/beta/rc suffix
+if [[ "$PYTHON_VERSION" =~ ^([0-9]+)\.([0-9]+)\.[0-9]+(a|b|rc) ]]; then
+    # Pre-release: binary is python3.15 (not python3.15.0a2)
+    PYTHON_BINARY="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+    BINARY_PATH="$INSTALL_PREFIX/bin/python$PYTHON_BINARY"
+else
+    # Stable release: binary includes full version
+    BINARY_PATH="$INSTALL_PREFIX/bin/python$PYTHON_VERSION"
+fi
+
+echo -n -e "${YELLOW}Would you like to create a symlink for Python $PYTHON_VERSION as $SYMLINK_NAME (yes/no)? ${RESET}"
+read CREATE_SYMLINK
+
+if [ "$CREATE_SYMLINK" == "yes" ]; then
+    echo -e "${GREEN}Creating symlink...${RESET}"
+    sudo ln -sf "$BINARY_PATH" /usr/local/bin/$SYMLINK_NAME
+
+    if [ $? -ne 0 ]; then
+        echo -e "${BRIGHT_RED}Failed to create symlink. Please check the logs for more information.${RESET}"
+        exit 1
+    fi
+
+    echo -e "${BRIGHT_GREEN}Symlink created successfully: /usr/local/bin/$SYMLINK_NAME${RESET}"
+
+    echo -e "${GREEN}Verifying Python version...${RESET}"
+    /usr/local/bin/$SYMLINK_NAME --version
+else
+    echo -e "${BRIGHT_YELLOW}Skipping symlink creation.${RESET}"
+fi
+
+# TEST BASE INSTALLATION AND SYMLINKS
+if [ "$CREATE_SYMLINK" == "yes" ]; then
+    echo -e "${GREEN}Testing Python installation...${RESET}"
+    /usr/local/bin/$SYMLINK_NAME --version
+    if [ $? -ne 0 ]; then
+        echo -e "${BRIGHT_RED}Python installation test failed. Please check the output and try again.${RESET}"
+        exit 1
+    fi
+    echo -e "${BRIGHT_GREEN}Python $PYTHON_VERSION is successfully installed and accessible via $SYMLINK_NAME.${RESET}"
+fi
+
+# CLEANUP TEMP FILES
+rm -rf /tmp/Python-$PYTHON_VERSION
+rm -f /tmp/Python-$PYTHON_VERSION.tgz
+
+# FINAL MESSAGE
+echo -e "${BRIGHT_BLUE}Installation process completed.${RESET}"
+echo -e "You can now use Python $PYTHON_VERSION."

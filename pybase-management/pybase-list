@@ -1,0 +1,147 @@
+#!/usr/bin/env bash
+
+##! name: pybase-list
+##! desc: List all base environments in ~/pybase-envs/
+##! group: python
+##! <.ELYX.>
+
+# DEFINE ANSI COLOR CODES
+
+# Standard Text
+RED='\033[31m'
+GREEN='\033[32m'
+YELLOW='\033[33m'
+CYAN='\033[36m'
+WHITE='\033[37m'
+
+# Bright Text
+BRIGHT_GREEN='\033[92m'
+BRIGHT_YELLOW='\033[93m'
+BRIGHT_CYAN='\033[96m'
+BRIGHT_MAGENTA='\033[95m'
+
+# Reset
+RESET='\033[0m'
+
+# SET PATHS
+PYBASE_DIR="$HOME/pybase-envs"
+
+echo -e "${BRIGHT_MAGENTA}[*] +++ PYBASE ENVIRONMENTS +++${RESET}"
+echo ""
+
+# CHECK IF PYBASE DIRECTORY EXISTS
+if [ ! -d "$PYBASE_DIR" ]; then
+    echo -e "${BRIGHT_RED}No pybase-envs directory found at $PYBASE_DIR${RESET}"
+    echo -e "${YELLOW}Create one with: pybase-create${RESET}"
+    exit 0
+fi
+
+echo -e "${BRIGHT_CYAN}Base environments in $PYBASE_DIR:${RESET}"
+echo ""
+
+FOUND_ANY=false
+COUNT=0
+
+for env_path in "$PYBASE_DIR"/*/; do
+    if [ -d "$env_path" ]; then
+        ENV_NAME=$(basename "$env_path")
+        PYTHON_BIN="$env_path/bin/python"
+        ACTIVATE_SCRIPT="$env_path/bin/activate"
+        
+        # Check what components exist
+        HAS_ACTIVATE=false
+        HAS_PYTHON=false
+        HAS_PIP=false
+        
+        [ -f "$ACTIVATE_SCRIPT" ] && HAS_ACTIVATE=true
+        [ -f "$PYTHON_BIN" ] && HAS_PYTHON=true
+        [ -f "$env_path/bin/pip" ] && HAS_PIP=true
+        
+        # Check if it's a valid env
+        if [ "$HAS_ACTIVATE" = true ] && [ "$HAS_PYTHON" = true ]; then
+            FOUND_ANY=true
+            ((COUNT++))
+            
+            # Get Python version
+            PYTHON_VERSION=$("$PYTHON_BIN" --version 2>&1 | awk '{print $2}')
+            
+            # Get real Python path
+            REAL_PYTHON=$(readlink -f "$PYTHON_BIN")
+            
+            # Get pip version if available
+            if [ "$HAS_PIP" = true ]; then
+                PIP_VERSION=$("$env_path/bin/pip" --version 2>&1 | awk '{print $2}')
+            else
+                PIP_VERSION="${RED}not installed${RESET}"
+            fi
+            
+            # Count installed packages
+            if [ "$HAS_PIP" = true ]; then
+                PACKAGE_COUNT=$("$env_path/bin/pip" list 2>/dev/null | tail -n +3 | wc -l)
+            else
+                PACKAGE_COUNT="N/A"
+            fi
+            
+            # Check if this is the base env
+            if [ "$ENV_NAME" == "elyx" ]; then
+                echo -e "${GREEN}  ⭐ $ENV_NAME ${BRIGHT_MAGENTA}(BASE ENV)${RESET}"
+            else
+                echo -e "${GREEN}  ✓ $ENV_NAME${RESET}"
+            fi
+            
+            echo -e "    ${WHITE}Location:       $env_path${RESET}"
+            echo -e "    ${WHITE}Python Version: $PYTHON_VERSION${RESET}"
+            echo -e "    ${WHITE}Python Path:    $REAL_PYTHON${RESET}"
+            echo -e "    ${WHITE}Pip Version:    $PIP_VERSION${RESET}"
+            echo -e "    ${WHITE}Packages:       $PACKAGE_COUNT installed${RESET}"
+            echo -e "    ${CYAN}Activate:       source $ACTIVATE_SCRIPT${RESET}"
+            echo ""
+        else
+            # Incomplete/invalid env - show diagnostics
+            echo -e "${YELLOW}  ⚠ $ENV_NAME ${RESET}(incomplete/invalid env)"
+            echo -e "    ${WHITE}Location: $env_path${RESET}"
+            
+            # Show what's missing or broken
+            if [ "$HAS_ACTIVATE" = false ]; then
+                echo -e "    ${RED}✗ Missing: bin/activate script${RESET}"
+            else
+                echo -e "    ${GREEN}✓ Has: bin/activate script${RESET}"
+            fi
+            
+            if [ "$HAS_PYTHON" = false ]; then
+                echo -e "    ${RED}✗ Missing: bin/python binary${RESET}"
+            else
+                if [ -x "$PYTHON_BIN" ]; then
+                    PYTHON_VERSION=$("$PYTHON_BIN" --version 2>&1 | awk '{print $2}')
+                    REAL_PYTHON=$(readlink -f "$PYTHON_BIN")
+                    echo -e "    ${GREEN}✓ Has: bin/python${RESET} (version $PYTHON_VERSION)"
+                    echo -e "    ${WHITE}  Points to: $REAL_PYTHON${RESET}"
+                    
+                    # Check if the real python still exists
+                    if [ ! -f "$REAL_PYTHON" ]; then
+                        echo -e "    ${RED}✗ Broken: Python symlink points to non-existent file${RESET}"
+                    fi
+                else
+                    echo -e "    ${RED}✗ Error: bin/python exists but not executable${RESET}"
+                fi
+            fi
+            
+            if [ "$HAS_PIP" = false ]; then
+                echo -e "    ${RED}✗ Missing: bin/pip${RESET}"
+            else
+                echo -e "    ${GREEN}✓ Has: bin/pip${RESET}"
+            fi
+            
+            echo -e "    ${YELLOW}Fix: Use venv-repair or recreate this env${RESET}"
+            echo ""
+        fi
+    fi
+done
+
+if [ "$FOUND_ANY" = false ]; then
+    echo -e "${BRIGHT_YELLOW}No base environments found in $PYBASE_DIR${RESET}"
+    echo ""
+fi
+
+echo -e "${BRIGHT_CYAN}Summary: $COUNT base environment(s) found${RESET}"
+echo -e "${BRIGHT_GREEN}Use 'pybase-create' to create a new base environment${RESET}"

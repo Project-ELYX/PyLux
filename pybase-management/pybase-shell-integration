@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+
+##! name: pybase-shell-integration
+##! desc: Set up persistent base environment activation (like conda base)
+##! group: python
+##! <.ELYX.>
+
+# DEFINE ANSI COLOR CODES
+RED='\033[31m'
+GREEN='\033[32m'
+YELLOW='\033[33m'
+CYAN='\033[36m'
+WHITE='\033[37m'
+BRIGHT_GREEN='\033[92m'
+BRIGHT_YELLOW='\033[93m'
+BRIGHT_CYAN='\033[96m'
+BRIGHT_MAGENTA='\033[95m'
+BRIGHT_RED='\033[91m'
+RESET='\033[0m'
+
+echo -e "${BRIGHT_MAGENTA}[*] +++ PYBASE SHELL INTEGRATION +++${RESET}"
+echo ""
+
+PYBASE_DIR="$HOME/pybase-envs"
+BASE_ENV_PATH="$PYBASE_DIR/elyx"
+
+# Check if base env exists
+if [ ! -d "$BASE_ENV_PATH" ]; then
+    echo -e "${BRIGHT_RED}Error: Base environment 'elyx' not found at $BASE_ENV_PATH${RESET}"
+    echo -e "${YELLOW}Create it first with: pybase-create${RESET}"
+    exit 1
+fi
+
+echo -e "${CYAN}This will set up persistent base environment activation${RESET}"
+echo -e "${WHITE}The 'elyx' base env will auto-activate on shell start${RESET}"
+echo ""
+
+# Detect shell
+SHELL_NAME=$(basename "$SHELL")
+echo -e "${GREEN}Detected shell: $SHELL_NAME${RESET}"
+
+if [ "$SHELL_NAME" == "bash" ]; then
+    RC_FILE="$HOME/.bashrc"
+elif [ "$SHELL_NAME" == "zsh" ]; then
+    RC_FILE="$HOME/.zshrc"
+else
+    echo -e "${BRIGHT_RED}Unsupported shell: $SHELL_NAME${RESET}"
+    echo -e "${YELLOW}Supported: bash, zsh${RESET}"
+    exit 1
+fi
+
+echo -e "${CYAN}Will modify: $RC_FILE${RESET}"
+echo ""
+echo -e "${YELLOW}Continue? (yes/no): ${RESET}"
+read -r CONTINUE
+
+if [ "$CONTINUE" != "yes" ] && [ "$CONTINUE" != "y" ]; then
+    echo -e "${CYAN}Cancelled${RESET}"
+    exit 0
+fi
+
+# Create the integration code
+INTEGRATION_CODE='
+# === PYBASE AUTO-ACTIVATION ===
+# Auto-activate elyx base environment (like conda base)
+export PYBASE_DIR="$HOME/pybase-envs"
+export PYBASE_BASE_ENV="elyx"
+
+# Function to activate base env
+pybase_activate_base() {
+    if [ -z "$VIRTUAL_ENV" ] && [ -f "$PYBASE_DIR/$PYBASE_BASE_ENV/bin/activate" ]; then
+        source "$PYBASE_DIR/$PYBASE_BASE_ENV/bin/activate"
+        export PYBASE_BASE_ACTIVE=1
+    fi
+}
+
+# Function to deactivate fully (including base)
+deactivate_all() {
+    if [ -n "$VIRTUAL_ENV" ]; then
+        deactivate
+    fi
+    unset PYBASE_BASE_ACTIVE
+}
+
+# Override the standard deactivate to return to base
+if [ -n "$BASH_VERSION" ]; then
+    _original_deactivate=$(declare -f deactivate)
+    eval "deactivate() {
+        local was_base=\$PYBASE_BASE_ACTIVE
+        command deactivate
+        if [ -n \"\$was_base\" ]; then
+            pybase_activate_base
+        fi
+    }"
+elif [ -n "$ZSH_VERSION" ]; then
+    deactivate() {
+        local was_base=$PYBASE_BASE_ACTIVE
+        command deactivate 2>/dev/null || true
+        if [ -n "$was_base" ]; then
+            pybase_activate_base
+        fi
+    }
+fi
+
+# Auto-activate base on shell start
+pybase_activate_base
+# === END PYBASE AUTO-ACTIVATION ===
+'
+
+# Check if already exists
+if grep -q "PYBASE AUTO-ACTIVATION" "$RC_FILE" 2>/dev/null; then
+    echo -e "${BRIGHT_YELLOW}Integration code already exists in $RC_FILE${RESET}"
+    echo -e "${YELLOW}Remove it manually if you want to reinstall${RESET}"
+    exit 0
+fi
+
+# Add integration code
+echo "$INTEGRATION_CODE" >> "$RC_FILE"
+
+echo ""
+echo -e "${BRIGHT_GREEN}✓ Shell integration installed!${RESET}"
+echo ""
+echo -e "${BRIGHT_CYAN}Features added:${RESET}"
+echo -e "  ${GREEN}✓${RESET} Auto-activates 'elyx' base env on shell start"
+echo -e "  ${GREEN}✓${RESET} ${WHITE}deactivate${RESET} returns to base env (not fully off)"
+echo -e "  ${GREEN}✓${RESET} ${WHITE}deactivate_all${RESET} fully deactivates everything"
+echo ""
+echo -e "${BRIGHT_YELLOW}⚠ Restart your shell or run:${RESET}"
+echo -e "${WHITE}  source $RC_FILE${RESET}"
+echo ""
+echo -e "${CYAN}Usage:${RESET}"
+echo -e "  ${WHITE}source path/to/project/venv/bin/activate${RESET}  # Switch to project venv"
+echo -e "  ${WHITE}deactivate${RESET}                                 # Return to base env"
+echo -e "  ${WHITE}deactivate_all${RESET}                             # Fully deactivate"

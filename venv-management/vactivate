@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+
+##! name: vactivate
+##! desc: Quick activate venv from ~/venvs/ by name
+##! group: python
+##! <.ELYX.>
+
+# This script needs to be sourced to work properly
+if [ "${BASH_SOURCE[0]}" == "${0}" ]; then
+    echo "Error: This script must be sourced, not executed"
+    echo "Usage: source vactivate <venv-name>"
+    echo "   or: . vactivate <venv-name>"
+    exit 1
+fi
+
+VENV_DIR="$HOME/venvs"
+
+if [ -z "$1" ]; then
+    echo "Usage: vactivate <venv-name>"
+    echo ""
+    echo "Available venvs:"
+    if [ -d "$VENV_DIR" ]; then
+        for venv in "$VENV_DIR"/*; do
+            if [ -d "$venv" ]; then
+                echo "  - $(basename "$venv")"
+            fi
+        done
+    else
+        echo "  (none found in $VENV_DIR)"
+    fi
+    return 1
+fi
+
+VENV_NAME="$1"
+VENV_PATH="$VENV_DIR/$VENV_NAME"
+
+if [ ! -d "$VENV_PATH" ]; then
+    echo "Error: Venv '$VENV_NAME' not found at $VENV_PATH"
+    return 1
+fi
+
+if [ ! -f "$VENV_PATH/bin/activate" ]; then
+    echo "Error: $VENV_PATH/bin/activate not found"
+    return 1
+fi
+
+source "$VENV_PATH/bin/activate"
+echo "Activated: $VENV_NAME"
