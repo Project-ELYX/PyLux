@@ -21,6 +21,24 @@ RESET='\033[0m'
 echo -e "${BRIGHT_MAGENTA}[*] +++ PYBASE SHELL INTEGRATION +++${RESET}"
 echo ""
 
+echo -e "${CYAN}This sets up persistent base environment (like conda base)${RESET}"
+echo -e "${YELLOW}Skip this if you prefer traditional venv workflow!${RESET}"
+echo ""
+echo -e "${WHITE}Do you want to enable base environment auto-activation? (yes/no): ${RESET}"
+read -r ENABLE_BASE_ENV
+
+if [ "$ENABLE_BASE_ENV" != "yes" ] && [ "$ENABLE_BASE_ENV" != "y" ]; then
+    echo -e "${GREEN}Base environment integration skipped${RESET}"
+    echo -e "${CYAN}You can still use PyLux normally:${RESET}"
+    echo -e "  ${WHITE}• Create venvs with: vcreate${RESET}"
+    echo -e "  ${WHITE}• Activate with: vactivate <name>${RESET}"
+    echo -e "  ${WHITE}• Deactivate normally: deactivate${RESET}"
+    echo ""
+    echo -e "${BRIGHT_CYAN}Run this command again anytime to enable base env!${RESET}"
+    exit 0
+fi
+
+echo ""
 echo -e "${CYAN}Enter the name of your base environment (default: base): ${RESET}"
 read -r BASE_ENV_NAME
 BASE_ENV_NAME=${BASE_ENV_NAME:-base}
@@ -114,8 +132,34 @@ pybase_activate_base
 # Check if already exists
 if grep -q "PYBASE AUTO-ACTIVATION" "$RC_FILE" 2>/dev/null; then
     echo -e "${BRIGHT_YELLOW}Integration code already exists in $RC_FILE${RESET}"
-    echo -e "${YELLOW}Remove it manually if you want to reinstall${RESET}"
-    exit 0
+    echo -e "${YELLOW}Options:${RESET}"
+    echo -e "  ${WHITE}1)${RESET} Keep current setup (do nothing)"
+    echo -e "  ${WHITE}2)${RESET} Remove base env integration"
+    echo -e "  ${WHITE}3)${RESET} Replace with new base env name"
+    echo ""
+    echo -n -e "${CYAN}Choose (1/2/3): ${RESET}"
+    read -r CHOICE
+    
+    case $CHOICE in
+        1)
+            echo -e "${GREEN}Keeping current setup${RESET}"
+            exit 0
+            ;;
+        2)
+            sed -i '/# === PYBASE AUTO-ACTIVATION ===/,/# === END PYBASE AUTO-ACTIVATION ===/d' "$RC_FILE"
+            echo -e "${BRIGHT_GREEN}✓ Base environment integration removed${RESET}"
+            echo -e "${CYAN}Restart shell or run: source $RC_FILE${RESET}"
+            exit 0
+            ;;
+        3)
+            sed -i '/# === PYBASE AUTO-ACTIVATION ===/,/# === END PYBASE AUTO-ACTIVATION ===/d' "$RC_FILE"
+            echo -e "${GREEN}Removed old integration, installing new...${RESET}"
+            ;;
+        *)
+            echo -e "${YELLOW}Invalid choice, keeping current setup${RESET}"
+            exit 0
+            ;;
+    esac
 fi
 
 # Add integration code

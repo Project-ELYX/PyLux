@@ -263,6 +263,201 @@ To restore: mv ~/pylux-venvs/old-project.bak ~/pylux-venvs/old-project
 
 ---
 
+### vclone
+
+**Clone existing venv with all packages**
+
+```bash
+vclone
+```
+
+**Features:**
+- Interactive source venv selection
+- Automatic Python version detection
+- Extracts full package list with `pip freeze`
+- Creates new venv with same Python version
+- Reinstalls all packages with versions
+- Perfect for duplicating working environments
+
+**Example:**
+```bash
+$ vclone
+# Select source: web-scraper
+# Name new venv: web-scraper-v2
+# Detects Python 3.13.9
+# Copies all 47 packages with exact versions
+```
+
+---
+
+### vdiff
+
+**Compare packages between two venvs**
+
+```bash
+vdiff
+```
+
+**Features:**
+- Interactive dual venv selection
+- Side-by-side package comparison
+- Shows version differences
+- Shows packages unique to each venv
+- Color-coded output (different = yellow, same = green)
+- Summary statistics
+
+**Example Output:**
+```
+📦 Comparing: web-scraper vs web-scraper-v2
+══════════════════════════════════════════════════════════════
+
+Package Differences:
+  requests: 2.31.0 vs 2.32.0 ⚠
+  numpy: 1.24.3 vs 1.25.0 ⚠
+
+Only in web-scraper:
+  beautifulsoup4 (4.12.2)
+
+Only in web-scraper-v2:
+  lxml (5.1.0)
+
+Summary:
+  Same: 45 packages
+  Different versions: 2 packages
+  Unique to web-scraper: 1 package
+  Unique to web-scraper-v2: 1 package
+```
+
+---
+
+## Cache Management
+
+### vcache
+
+**Manage shared package cache to save disk space**
+
+```bash
+vcache status   # View cache statistics
+vcache clean    # Remove orphaned packages
+vcache rebuild  # Rebuild cache registry from venvs
+```
+
+**Features:**
+- **Shared storage** - Packages installed once in `~/pylux-cache/packages/`
+- **Hardlinks** - Same file, multiple locations, stored once on disk
+- **Automatic usage** - vcreate and vrepair use cache automatically
+- **Registry tracking** - JSON file tracks which venvs use which packages
+- **Orphan cleanup** - Remove packages not used by any venv
+- **Space savings** - 5 venvs with numpy = 1 copy on disk!
+
+**Cache Structure:**
+```
+~/pylux-cache/
+├── packages/
+│   ├── numpy/
+│   │   ├── 1.24.3/    # Stored once
+│   │   └── 1.25.0/    # Different version
+│   ├── requests/
+│   │   └── 2.31.0/
+│   └── pandas/
+│       └── 2.1.0/
+└── registry.json       # Tracks venv usage
+```
+
+**vcache status output:**
+```bash
+$ vcache status
+
+📦 PyLux Package Cache Status
+══════════════════════════════════════════════════════════════
+
+Cache Directory: /home/user/pylux-cache
+Total Size: 1.2G
+
+Cached Packages: 47
+Tracked VEnvs: 5
+
+Top 10 Largest Packages:
+  torch (1.13.1)      - 524M
+  numpy (1.24.3)      - 98M
+  pandas (2.1.0)      - 76M
+  scipy (1.11.4)      - 54M
+  matplotlib (3.8.2)  - 42M
+  ...
+
+Space Savings: ~4.8G (estimated if packages were duplicated)
+```
+
+**How It Works:**
+1. When `vcreate` or `vrepair` installs a package:
+   - Package installed normally with pip
+   - Package files copied to `~/pylux-cache/packages/{name}/{version}/`
+   - Original files deleted
+   - Hardlinked back from cache to venv
+   - Registry updated to track usage
+
+2. When you delete a venv:
+   - Hardlinks removed from venv
+   - Package files remain in cache (other venvs may use them)
+   - Run `vcache clean` to remove unused packages
+
+3. Multiple venvs sharing packages:
+   - All point to same files via hardlinks
+   - Same inode = only one copy on disk
+   - Delete one venv, others unaffected
+
+**vcache clean:**
+```bash
+$ vcache clean
+
+Scanning venvs for package usage...
+Found 3 orphaned packages:
+  - old-package (1.0.0) - not used by any venv
+  - deprecated-lib (0.5.0) - not used by any venv
+
+Remove orphaned packages? (yes/no): yes
+✓ Removed 2 packages
+✓ Freed 145M of disk space
+```
+
+**vcache rebuild:**
+```bash
+$ vcache rebuild
+
+Rebuilding cache registry...
+Scanning: ~/pylux-venvs/
+Found 5 venvs
+Extracting packages...
+  web-scraper: 47 packages
+  data-analysis: 82 packages
+  ml-project: 134 packages
+  api-server: 35 packages
+  scraper-v2: 51 packages
+
+✓ Registry rebuilt
+✓ Total tracked packages: 349 (with duplicates across venvs)
+✓ Unique packages in cache: 67
+```
+
+**Benefits:**
+- Save gigabytes of disk space
+- Faster venv creation (if package cached)
+- Automatic - no manual intervention
+- Safe - uses filesystem hardlinks
+- Transparent - venvs work normally
+
+**Example Space Savings:**
+```
+Without cache:
+  5 venvs × 200MB numpy = 1GB storage
+
+With cache:
+  5 venvs → 1 numpy copy = 200MB storage
+  Savings: 800MB (80%)
+```
+
+---
+
 ## Base Environment Management
 
 ### base-create
@@ -626,6 +821,14 @@ EOF
   ├── dev/
   └── ml-tools/
 
+~/pylux-cache/                # Shared package cache
+  ├── packages/
+  │   ├── numpy/
+  │   │   └── 1.24.3/
+  │   └── requests/
+  │       └── 2.31.0/
+  └── registry.json           # Usage tracking
+
 /usr/local/bin/           # Symlinks
   ├── py313 -> /opt/pylux-sources/3.13.9/bin/python3.13
   ├── py312 -> /opt/pylux-sources/3.12.7/bin/python3.12
@@ -634,6 +837,9 @@ EOF
 ~/bin/                    # PyLux scripts (after install)
   ├── py-altinstall
   ├── vcreate
+  ├── vcache
+  ├── vclone
+  ├── vdiff
   ├── base-create
   └── ...
 ```

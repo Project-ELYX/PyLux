@@ -12,7 +12,7 @@ This is a collection of optimized scripts and functions I made for my own use, w
 
 Started as "Python for Linux" since these are bash scripts optimized for Linux distros. But as it grew, it became more about providing a *luxurious* Python workflow - clean, fast, and without the bloat. Pick whichever interpretation makes you happier. 😎
 
-> **Note:** Currently Linux-only. macOS *might* work (uses bash/zsh too) but hasn't been tested. Windows users: try WSL2!
+> **Note:** Currently Linux-only. macOS *might* work (uses bash/zsh too; would likely require modifications to save directory paths) but hasn't been tested. Windows users: try WSL2!
 
 ## Why PyLux?
 
@@ -48,6 +48,18 @@ PyLux gives you:
 - **vrepair-local** - Repair in-project venvs
 - **vactivate** - Quick activation: `vactivate myproject` instead of `source ~/pylux-venvs/myproject/bin/activate`
 - **vdel** - Safe deletion with confirmation and optional backup
+- **vclone** - Clone existing venv with all packages to new venv
+- **vdiff** - Compare packages between two venvs
+
+### Cache Management (Space Saver!)
+- **vcache** - Manage shared package cache to save disk space
+- **Python version isolation** - Separate cache per Python version (no ABI conflicts)
+- **Safe hardlinks** - Code files hardlinked, metadata stays per-venv
+- **vcache status** - See cache size, cached packages organized by Python version
+- **vcache clean** - Remove orphaned packages (not used by any venv)
+- **vcache rebuild** - Scan all venvs and rebuild registry
+- Automatically used by vcreate and vrepair
+- **Zero safety compromises** - pip works normally, uninstall safe, upgrades safe
 
 ### Base Environment Management (Conda-style)
 - **base-create** - Create specialized base environments (dev, data-science, ml, etc.)
@@ -96,12 +108,16 @@ base-create
 # Install packages
 ```
 
-### 3. Set up persistent base env
+### 3. Set up persistent base env (OPTIONAL!)
 ```bash
 base-shell-integration
+# Choose YES to enable conda-style base env
+# Choose NO to use PyLux with traditional venv workflow
 source ~/.zshrc
-# Now you'll always have your base env active!
+# Now you'll always have your base env active (if enabled)
 ```
+
+**Don't want base env?** Skip this step! Use `vactivate` and `deactivate` normally.
 
 ### 4. Create project venvs
 ```bash
@@ -155,6 +171,15 @@ py-list                 # See all installed Pythons
 - Rebuilds venv with new Python and reinstalls packages
 - Smart version matching for seamless migration
 
+**Shared Package Cache:**
+- Packages stored in `~/pylux-cache/` organized by Python version (cp311, cp312, etc.)
+- **Python version isolation** - No ABI mismatches, each Python version has its own cache
+- **Safe hardlinking** - Package code hardlinked, pip metadata stays per-venv
+- **Atomic writes** - Cache updates are atomic to prevent corruption
+- Automatic cache usage in vcreate and vrepair
+- Example: 5 venvs with torch (Python 3.12) = 1 cached copy + hardlinks!
+- **VEX GOLD STANDARD** - Maximum disk savings with zero safety compromises
+
 **Base Environment:**
 - Shell integration auto-activates base env on startup
 - Overrides `deactivate` to return to base instead of fully deactivating
@@ -167,6 +192,7 @@ py-list                 # See all installed Pythons
 - Bash or Zsh
 - Build tools for compiling Python: `gcc`, `make`, `libssl-dev`, `zlib1g-dev`, `libbz2-dev`, etc.
 - `curl` or `wget`
+- `jq` for cache management (JSON registry parsing)
 - **Optional:** `fzf` for the interactive `pylux` launcher (highly recommended!)
   ```bash
   sudo apt install fzf  # Debian/Ubuntu
@@ -179,18 +205,18 @@ sudo apt update && sudo apt install -y \
     build-essential gcc make \
     libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev \
     libffi-dev liblzma-dev libncurses5-dev libgdbm-dev libnss3-dev \
-    curl wget git fzf
+    curl wget git jq fzf
 
 # Fedora/RHEL
 sudo dnf groupinstall "Development Tools" && \
 sudo dnf install -y \
     openssl-devel zlib-devel bzip2-devel readline-devel sqlite-devel \
     libffi-devel xz-devel ncurses-devel gdbm-devel nss-devel \
-    curl wget git fzf
+    curl wget git jq fzf
 
 # Arch
 sudo pacman -S --needed base-devel openssl zlib bzip2 readline sqlite \
-    libffi xz ncurses gdbm nss curl wget git fzf
+    libffi xz ncurses gdbm nss curl wget git jq fzf
 ```
 
 ## Directory Structure
@@ -209,7 +235,11 @@ PyLux/
 │   ├── vrepair-local
 │   ├── vactivate
 │   ├── vdel
+│   ├── vclone
+│   ├── vdiff
 │   └── venv-aliases-setup
+├── cache-management/      # Shared package cache
+│   └── vcache
 └── base-management/       # Base environment tools
     ├── base-create
     ├── base-list
@@ -232,7 +262,7 @@ PyLux/
 - No hidden configuration files
 - No package manager lock-in
 
-**Recover from Anything:**
+**Recover from Anything (except mutilation):**
 - Migrated from conda? Repair broken venvs
 - Deleted Python? Rebuild seamlessly
 - Packages still exist? We'll find them
@@ -248,19 +278,34 @@ A: Pyenv is excellent but PyLux adds venv management, base environments, and rec
 **Q: Can I use this alongside conda/pyenv?**
 A: Yes! PyLux installs to `/opt/pylux-sources/` and uses its own paths. Just don't let conda's auto-activation conflict with PyLux's base env.
 
+**Q: Do I have to use the base environment feature?**
+A: Nope! The base env is totally optional. You can use PyLux just for source compilation and venv management without any shell integration. Just skip the `base-shell-integration` command and use `vactivate`/`deactivate` normally. Best of both worlds!
+
 **Q: Is this production-ready?**
-A: It's stable and tested on personal systems. Use at your own discretion. Always backup important environments.
+A: Aside from the cache (as of today, Nov.29/25) it's stable and tested on personal systems. Use at your own discretion. Always backup important environments.
 
 **Q: Can I install alpha/beta Python versions?**
-A: YES! That's one of the best features. Try Python 3.15 alphas before anyone else.
+A: YES! Try Python alphas before anyone else (I definitely didn't test this trying to install 3.15.0a2).
 
 **Q: Can I customize where PyLux stores files?**
 A: Yes! Edit the path variables at the top of each script:
 - **py-altinstall/py-list/py-del**: Change `PYLUX_SOURCES="/opt/pylux-sources"` 
 - **venv scripts**: Change `VENV_DIR="$HOME/pylux-venvs"`
 - **base scripts**: Change `PYBASE_DIR="$HOME/pylux-base-envs"`
+- **cache scripts**: Change `CACHE_DIR="$HOME/pylux-cache"`
 
 All paths are simple bash variables - no hidden config files!
+
+**Q: How much space does the cache save?**
+A: MASSIVE savings- especially for solo devs! If you have 5 venvs with torch (800MB each), that's 4GB normally but only ~900MB with hardlinks (800MB cached + small metadata per venv). Python version isolation means each Python gets its own cache - so torch for Python 3.12 is separate from Python 3.11.
+
+**Q: What are hardlinks and why are they safe?**
+A: Same file, multiple locations, same inode = only stored once on disk. PyLux uses **Python version isolation** (separate cache per cp311, cp312, etc.) and only hardlinks package code files, NOT pip metadata. This means:
+- Each venv has its own `.dist-info` (pip sees it as properly installed)
+- Package code is hardlinked from cache (massive disk savings)
+- `pip uninstall` works normally (removes hardlinks, cache stays)
+- No ABI mismatches (Python 3.11 never shares with 3.12)
+- **GOLD STANDARD** implementation - zero compromises
 
 ## Contributing
 
@@ -276,4 +321,4 @@ Created by someone who got tired of conda's shit and decided to build something 
 
 ---
 
-**PyLux** - Light up your Python workflow ✨
+**PyLux** - Light up your Python workflow -- without lighhting up your hard drive (and your file management) ✨

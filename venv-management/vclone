@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+
+##! name: vclone
+##! desc: Clone a virtual environment with all packages
+##! group: venv-management
+##! <.ELYX.>
+
+# ANSI Colors
+RED='\033[31m'
+GREEN='\033[32m'
+YELLOW='\033[33m'
+CYAN='\033[36m'
+WHITE='\033[37m'
+BRIGHT_RED='\033[91m'
+BRIGHT_GREEN='\033[92m'
+BRIGHT_YELLOW='\033[93m'
+BRIGHT_CYAN='\033[96m'
+BRIGHT_MAGENTA='\033[95m'
+RESET='\033[0m'
+
+VENV_DIR="$HOME/pylux-venvs"
+
+echo -e "${BRIGHT_MAGENTA}[*] +++ VENV CLONE +++${RESET}"
+echo ""
+
+# List available venvs
+echo -e "${BRIGHT_CYAN}Available venvs to clone:${RESET}"
+echo ""
+
+VENV_LIST=()
+INDEX=1
+
+for venv_path in "$VENV_DIR"/*/; do
+    if [ -d "$venv_path" ] && [ -f "$venv_path/bin/python" ]; then
+        VENV_NAME=$(basename "$venv_path")
+        VENV_LIST+=("$VENV_NAME")
+        
+        PYTHON_VERSION=$("$venv_path/bin/python" --version 2>&1 | awk '{print $2}')
+        PACKAGE_COUNT=$("$venv_path/bin/pip" list 2>/dev/null | tail -n +3 | wc -l)
+        
+        echo -e "  ${GREEN}$INDEX)${RESET} $VENV_NAME ${CYAN}(Python $PYTHON_VERSION, $PACKAGE_COUNT packages)${RESET}"
+        ((INDEX++))
+    fi
+done
+
+if [ ${#VENV_LIST[@]} -eq 0 ]; then
+    echo -e "${BRIGHT_YELLOW}No venvs found in $VENV_DIR${RESET}"
+    exit 0
+fi
+
+echo ""
+echo -e "${WHITE}Enter source venv number (or name): ${RESET}"
+read -r SOURCE_SELECTION
+
+# Parse selection
+if [[ "$SOURCE_SELECTION" =~ ^[0-9]+$ ]]; then
+    if [ "$SOURCE_SELECTION" -lt 1 ] || [ "$SOURCE_SELECTION" -gt ${#VENV_LIST[@]} ]; then
+        echo -e "${BRIGHT_RED}Invalid selection${RESET}"
+        exit 1
+    fi
+    SOURCE_NAME="${VENV_LIST[$((SOURCE_SELECTION-1))]}"
+else
+    SOURCE_NAME="$SOURCE_SELECTION"
+fi
+
+SOURCE_PATH="$VENV_DIR/$SOURCE_NAME"
+
+if [ ! -d "$SOURCE_PATH" ]; then
+    echo -e "${BRIGHT_RED}Error: Source venv '$SOURCE_NAME' not found${RESET}"
+    exit 1
+fi
+
+# Get new name
+echo ""
+echo -e "${WHITE}Enter new venv name: ${RESET}"
+read -r NEW_NAME
+
+if [ -z "$NEW_NAME" ]; then
+    echo -e "${BRIGHT_RED}Error: Name cannot be empty${RESET}"
+    exit 1
+fi
+
+NEW_PATH="$VENV_DIR/$NEW_NAME"
+
+if [ -d "$NEW_PATH" ]; then
+    echo -e "${BRIGHT_RED}Error: Venv '$NEW_NAME' already exists${RESET}"
+    exit 1
+fi
+
+echo ""
+echo -e "${GREEN}Cloning '$SOURCE_NAME' → '$NEW_NAME'${RESET}"
+echo ""
+
+# Get Python version from source
+PYTHON_BIN=$(readlink -f "$SOURCE_PATH/bin/python")
+PYTHON_VERSION=$("$SOURCE_PATH/bin/python" --version 2>&1 | awk '{print $2}')
+
+echo -e "${CYAN}Step 1: Creating new venv with Python $PYTHON_VERSION${RESET}"
+
+# Find matching Python installation
+PYTHON_MAJOR_MINOR=$(echo "$PYTHON_VERSION" | cut -d. -f1,2 | tr -d '.')
+PYTHON_SYMLINK="/usr/local/bin/py$PYTHON_MAJOR_MINOR"
+
+if [ -x "$PYTHON_SYMLINK" ]; then
+    "$PYTHON_SYMLINK" -m venv "$NEW_PATH" --without-pip
+else
+    echo -e "${BRIGHT_YELLOW}Warning: Could not find py$PYTHON_MAJOR_MINOR, using system python3${RESET}"
+    python3 -m venv "$NEW_PATH" --without-pip
+fi
+
+if [ $? -ne 0 ]; then
+    echo -e "${BRIGHT_RED}✗ Failed to create venv${RESET}"
+    exit 1
+fi
+
+echo -e "${BRIGHT_GREEN}✓ Created venv${RESET}"
+echo ""
+
+# Install pip
+echo -e "${CYAN}Step 2: Installing pip${RESET}"
+curl -sS https://bootstrap.pypa.io/get-pip.py | "$NEW_PATH/bin/python"
+echo -e "${BRIGHT_GREEN}✓ Pip installed${RESET}"
+echo ""
+
+# Export packages from source
+echo -e "${CYAN}Step 3: Extracting package list${RESET}"
+TEMP_REQS=$(mktemp)
+"$SOURCE_PATH/bin/pip" freeze > "$TEMP_REQS"
+PACKAGE_COUNT=$(wc -l < "$TEMP_REQS")
+echo -e "${BRIGHT_GREEN}✓ Found $PACKAGE_COUNT packages${RESET}"
+echo ""
+
+# Install packages
+echo -e "${CYAN}Step 4: Installing packages${RESET}"
+"$NEW_PATH/bin/pip" install -r "$TEMP_REQS"
+
+if [ $? -eq 0 ]; then
+    echo ""
+    echo -e "${BRIGHT_GREEN}✓✓✓ Clone complete!${RESET}"
+else
+    echo ""
+    echo -e "${BRIGHT_YELLOW}⚠ Some packages may have failed to install${RESET}"
+fi
+
+rm "$TEMP_REQS"
+
+echo ""
+echo -e "${BRIGHT_CYAN}New venv details:${RESET}"
+echo -e "  ${WHITE}Name:${RESET} $NEW_NAME"
+echo -e "  ${WHITE}Location:${RESET} $NEW_PATH"
+echo -e "  ${WHITE}Python:${RESET} $PYTHON_VERSION"
+echo ""
+echo -e "${BRIGHT_CYAN}Activate with:${RESET}"
+echo -e "  ${WHITE}vactivate $NEW_NAME${RESET}"

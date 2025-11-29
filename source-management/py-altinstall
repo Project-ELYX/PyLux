@@ -58,16 +58,15 @@ if [ "$KNOWS_VERSION" == "no" ] || [ "$KNOWS_VERSION" == "n" ]; then
     
     echo -e "${GREEN}Fetching versions...${RESET}"
     
+    # Fetch ALL stable versions
+    ALL_STABLE=$(curl -s https://www.python.org/ftp/python/ | \
+        grep -oP '(?<=href=")[0-9]+\.[0-9]+\.[0-9]+(?=/")' | \
+        sort -V -r)
+    
+    # Get pre-releases if requested
+    PRERELEASE_VERSIONS=""
     if [ "$INCLUDE_PRERELEASE" == "yes" ] || [ "$INCLUDE_PRERELEASE" == "y" ]; then
-        # Fetch stable versions first
-        STABLE_VERSIONS=$(curl -s https://www.python.org/ftp/python/ | \
-            grep -oP '(?<=href=")[0-9]+\.[0-9]+\.[0-9]+(?=/")' | \
-            sort -V -r | \
-            head -n 20)
-        
-        # Check inside 3.14.0 and 3.15.0 directories for pre-release files
-        PRERELEASE_VERSIONS=""
-        for dir in "3.14.0" "3.15.0"; do
+        for dir in "3.14.0" "3.15.0" "3.16.0"; do
             FOUND=$(curl -s "https://www.python.org/ftp/python/$dir/" 2>/dev/null | \
                 grep -oP "Python-\K[0-9]+\.[0-9]+\.[0-9]+(a[0-9]+|b[0-9]+|rc[0-9]+)(?=\.tgz)" | \
                 sort -V -r)
@@ -75,35 +74,134 @@ if [ "$KNOWS_VERSION" == "no" ] || [ "$KNOWS_VERSION" == "n" ]; then
                 PRERELEASE_VERSIONS="$PRERELEASE_VERSIONS"$'\n'"$FOUND"
             fi
         done
-        
-        # Combine, deduplicate, and sort
-        AVAILABLE_VERSIONS=$(echo -e "$PRERELEASE_VERSIONS\n$STABLE_VERSIONS" | grep -v '^$' | sort -V -r | uniq | head -n 30)
-    else
-        # Fetch stable versions only
-        AVAILABLE_VERSIONS=$(curl -s https://www.python.org/ftp/python/ | \
-            grep -oP '(?<=href=")[0-9]+\.[0-9]+\.[0-9]+(?=/")' | \
-            sort -V -r | \
-            head -n 20)
     fi
     
-    if [ -z "$AVAILABLE_VERSIONS" ]; then
+    # Combine all versions
+    ALL_VERSIONS=$(echo -e "$PRERELEASE_VERSIONS\n$ALL_STABLE" | grep -v '^$' | sort -V -r | uniq)
+    
+    if [ -z "$ALL_VERSIONS" ]; then
         echo -e "${BRIGHT_RED}Failed to fetch available versions. Please enter manually.${RESET}"
+        echo -n -e "${CYAN}Enter Python version (e.g., 3.13.0 or 3.15.0a2): ${RESET}"
+        read PYTHON_VERSION
     else
-        echo -e "${BRIGHT_CYAN}Available Python versions:${RESET}"
-        if [ "$INCLUDE_PRERELEASE" == "yes" ] || [ "$INCLUDE_PRERELEASE" == "y" ]; then
-            echo -e "${BRIGHT_YELLOW}(⚠ Pre-release versions marked with a/b/rc)${RESET}"
+        # Extract major versions (3.13, 3.12, 3.11, etc.)
+        MAJOR_VERSIONS=$(echo "$ALL_VERSIONS" | grep -oP '^[0-9]+\.[0-9]+' | uniq)
+        
+        # Check if FZF is available
+        if command -v fzf &> /dev/null; then
+            echo -e "${BRIGHT_CYAN}=== Step 1: Select Python Major Version ===${RESET}"
+            echo ""
+            
+            SELECTED_MAJOR=$(echo "$MAJOR_VERSIONS" | fzf \
+                --height=15 \
+                --border=rounded \
+                --prompt="🐍 Major Version → " \
+                --header="Select Python major version" \
+                --preview-window=right:50% \
+                --preview="echo 'Available versions in {}:'; echo '$ALL_VERSIONS' | grep '^{}' | head -10; echo ''; echo '(and more...)'")
+            
+            if [ -z "$SELECTED_MAJOR" ]; then
+                echo -e "${YELLOW}No selection made. Exiting.${RESET}"
+                exit 0
+            fi
+            
+            echo -e "${GREEN}Selected major version: $SELECTED_MAJOR${RESET}"
+            echo ""
+            
+            # Get all versions for selected major version
+            MAJOR_VERSION_LIST=$(echo "$ALL_VERSIONS" | grep "^$SELECTED_MAJOR")
+            LATEST_VERSION=$(echo "$MAJOR_VERSION_LIST" | head -1)
+            
+            echo -e "${BRIGHT_CYAN}=== Step 2: Select Specific Version ===${RESET}"
+            echo ""
+            
+            # Add "latest" option at the top
+            SELECTION_LIST="[LATEST] $LATEST_VERSION"$'\n'"$MAJOR_VERSION_LIST"
+            
+            SELECTED_VERSION=$(echo "$SELECTION_LIST" | fzf \
+                --height=20 \
+                --border=rounded \
+                --prompt="🐍 $SELECTED_MAJOR Version → " \
+                --header="Select specific version (or choose LATEST)" \
+                --preview-window=right:50% \
+                --preview='
+                    version=$(echo {} | sed "s/\[LATEST\] //")
+                    echo -e "Version: $version\n"
+                    if [[ "{}" == *"LATEST"* ]]; then
+                        echo -e "This is the LATEST release for '"$SELECTED_MAJOR"'\n"
+                    fi
+                    echo -e "Will be installed to:"
+                    echo "/opt/pylux-sources/$version"
+                    echo ""
+                    echo -e "Symlink will be:"
+                    echo "py$(echo $version | cut -d. -f1,2 | tr -d .)"
+                ')
+            
+            if [ -z "$SELECTED_VERSION" ]; then
+                echo -e "${YELLOW}No selection made. Exiting.${RESET}"
+                exit 0
+            fi
+            
+            # Remove [LATEST] prefix if present
+            PYTHON_VERSION=$(echo "$SELECTED_VERSION" | sed 's/\[LATEST\] //')
+            echo -e "${BRIGHT_GREEN}✓ Selected: Python $PYTHON_VERSION${RESET}"
+            
+        else
+            # Fallback without FZF - use numbered menus
+            echo -e "${BRIGHT_CYAN}=== Step 1: Select Python Major Version ===${RESET}"
+            echo ""
+            echo "$MAJOR_VERSIONS" | nl -w2 -s'. '
+            echo ""
+            echo -n -e "${CYAN}Enter number: ${RESET}"
+            read MAJOR_CHOICE
+            
+            SELECTED_MAJOR=$(echo "$MAJOR_VERSIONS" | sed -n "${MAJOR_CHOICE}p")
+            if [ -z "$SELECTED_MAJOR" ]; then
+                echo -e "${BRIGHT_RED}Invalid selection.${RESET}"
+                exit 1
+            fi
+            
+            echo -e "${GREEN}Selected: $SELECTED_MAJOR${RESET}"
+            echo ""
+            
+            # Get versions for selected major
+            MAJOR_VERSION_LIST=$(echo "$ALL_VERSIONS" | grep "^$SELECTED_MAJOR")
+            LATEST_VERSION=$(echo "$MAJOR_VERSION_LIST" | head -1)
+            
+            echo -e "${BRIGHT_CYAN}=== Step 2: Select Specific Version ===${RESET}"
+            echo -e "${BRIGHT_YELLOW}0. [LATEST] $LATEST_VERSION${RESET}"
+            echo "$MAJOR_VERSION_LIST" | nl -w2 -s'. '
+            echo ""
+            echo -n -e "${CYAN}Enter number (0 for latest): ${RESET}"
+            read VERSION_CHOICE
+            
+            if [ "$VERSION_CHOICE" == "0" ]; then
+                PYTHON_VERSION="$LATEST_VERSION"
+            else
+                PYTHON_VERSION=$(echo "$MAJOR_VERSION_LIST" | sed -n "${VERSION_CHOICE}p")
+                if [ -z "$PYTHON_VERSION" ]; then
+                    echo -e "${BRIGHT_RED}Invalid selection.${RESET}"
+                    exit 1
+                fi
+            fi
+            
+            echo -e "${BRIGHT_GREEN}✓ Selected: Python $PYTHON_VERSION${RESET}"
         fi
-        echo "$AVAILABLE_VERSIONS" | nl -w2 -s'. '
-        echo ""
     fi
+else
+    # User knows the version they want
+    echo -n -e "${CYAN}Enter Python version (e.g., 3.13.0 or 3.15.0a2): ${RESET}"
+    read PYTHON_VERSION
 fi
 
-# ASK PYTHON VERSIONS
+# Validate and continue with installation
+if [ -z "$PYTHON_VERSION" ]; then
+    echo -e "${BRIGHT_RED}No version specified. Exiting.${RESET}"
+    exit 1
+fi
 
-echo -n -e "${WHITE}Please enter the Python version (e.g 3.12.7 or 3.15.0a2): ${RESET}"
-read PYTHON_VERSION
-
-echo -n -e "${GREEN}Default path is /opt/pylux-sources/. "
+echo ""
+echo -e "${GREEN}Default installation path: /opt/pylux-sources/${RESET}"
 
 # CHECK IF IT'S A PRE-RELEASE VERSION
 if [[ "$PYTHON_VERSION" =~ [a-z] ]]; then

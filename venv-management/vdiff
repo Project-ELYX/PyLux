@@ -1,0 +1,160 @@
+#!/usr/bin/env bash
+
+##! name: vdiff
+##! desc: Compare packages between two virtual environments
+##! group: venv-management
+##! <.ELYX.>
+
+# ANSI Colors
+RED='\033[31m'
+GREEN='\033[32m'
+YELLOW='\033[33m'
+CYAN='\033[36m'
+WHITE='\033[37m'
+BRIGHT_RED='\033[91m'
+BRIGHT_GREEN='\033[92m'
+BRIGHT_YELLOW='\033[93m'
+BRIGHT_CYAN='\033[96m'
+BRIGHT_MAGENTA='\033[95m'
+RESET='\033[0m'
+
+VENV_DIR="$HOME/pylux-venvs"
+
+echo -e "${BRIGHT_MAGENTA}[*] +++ VENV DIFF +++${RESET}"
+echo ""
+
+# List available venvs
+echo -e "${BRIGHT_CYAN}Available venvs:${RESET}"
+echo ""
+
+VENV_LIST=()
+INDEX=1
+
+for venv_path in "$VENV_DIR"/*/; do
+    if [ -d "$venv_path" ] && [ -f "$venv_path/bin/python" ]; then
+        VENV_NAME=$(basename "$venv_path")
+        VENV_LIST+=("$VENV_NAME")
+        echo -e "  ${GREEN}$INDEX)${RESET} $VENV_NAME"
+        ((INDEX++))
+    fi
+done
+
+if [ ${#VENV_LIST[@]} -lt 2 ]; then
+    echo -e "${BRIGHT_YELLOW}Need at least 2 venvs to compare${RESET}"
+    exit 0
+fi
+
+echo ""
+echo -e "${WHITE}Enter first venv number (or name): ${RESET}"
+read -r ENV1_SELECTION
+
+if [[ "$ENV1_SELECTION" =~ ^[0-9]+$ ]]; then
+    ENV1_NAME="${VENV_LIST[$((ENV1_SELECTION-1))]}"
+else
+    ENV1_NAME="$ENV1_SELECTION"
+fi
+
+echo -e "${WHITE}Enter second venv number (or name): ${RESET}"
+read -r ENV2_SELECTION
+
+if [[ "$ENV2_SELECTION" =~ ^[0-9]+$ ]]; then
+    ENV2_NAME="${VENV_LIST[$((ENV2_SELECTION-1))]}"
+else
+    ENV2_NAME="$ENV2_SELECTION"
+fi
+
+ENV1_PATH="$VENV_DIR/$ENV1_NAME"
+ENV2_PATH="$VENV_DIR/$ENV2_NAME"
+
+# Validate
+if [ ! -d "$ENV1_PATH" ]; then
+    echo -e "${BRIGHT_RED}Error: Venv '$ENV1_NAME' not found${RESET}"
+    exit 1
+fi
+
+if [ ! -d "$ENV2_PATH" ]; then
+    echo -e "${BRIGHT_RED}Error: Venv '$ENV2_NAME' not found${RESET}"
+    exit 1
+fi
+
+echo ""
+echo -e "${GREEN}Comparing:${RESET}"
+echo -e "  ${CYAN}$ENV1_NAME${RESET} vs ${CYAN}$ENV2_NAME${RESET}"
+echo ""
+
+# Get package lists
+TEMP1=$(mktemp)
+TEMP2=$(mktemp)
+
+"$ENV1_PATH/bin/pip" freeze 2>/dev/null | sort > "$TEMP1"
+"$ENV2_PATH/bin/pip" freeze 2>/dev/null | sort > "$TEMP2"
+
+# Parse into associative arrays
+declare -A PACKAGES1
+declare -A PACKAGES2
+
+while IFS='==' read -r pkg version; do
+    PACKAGES1["$pkg"]="$version"
+done < "$TEMP1"
+
+while IFS='==' read -r pkg version; do
+    PACKAGES2["$pkg"]="$version"
+done < "$TEMP2"
+
+# Find differences
+ONLY_IN_1=()
+ONLY_IN_2=()
+DIFFERENT_VERSIONS=()
+
+# Check packages only in ENV1
+for pkg in "${!PACKAGES1[@]}"; do
+    if [ -z "${PACKAGES2[$pkg]}" ]; then
+        ONLY_IN_1+=("$pkg ${PACKAGES1[$pkg]}")
+    elif [ "${PACKAGES1[$pkg]}" != "${PACKAGES2[$pkg]}" ]; then
+        DIFFERENT_VERSIONS+=("$pkg: ${PACKAGES1[$pkg]} → ${PACKAGES2[$pkg]}")
+    fi
+done
+
+# Check packages only in ENV2
+for pkg in "${!PACKAGES2[@]}"; do
+    if [ -z "${PACKAGES1[$pkg]}" ]; then
+        ONLY_IN_2+=("$pkg ${PACKAGES2[$pkg]}")
+    fi
+done
+
+# Display results
+if [ ${#DIFFERENT_VERSIONS[@]} -gt 0 ]; then
+    echo -e "${BRIGHT_YELLOW}Version Differences:${RESET}"
+    for diff in "${DIFFERENT_VERSIONS[@]}"; do
+        echo -e "  ${YELLOW}⚠${RESET} $diff"
+    done
+    echo ""
+fi
+
+if [ ${#ONLY_IN_1[@]} -gt 0 ]; then
+    echo -e "${BRIGHT_CYAN}Only in $ENV1_NAME:${RESET}"
+    for pkg in "${ONLY_IN_1[@]}"; do
+        echo -e "  ${CYAN}+${RESET} $pkg"
+    done
+    echo ""
+fi
+
+if [ ${#ONLY_IN_2[@]} -gt 0 ]; then
+    echo -e "${BRIGHT_GREEN}Only in $ENV2_NAME:${RESET}"
+    for pkg in "${ONLY_IN_2[@]}"; do
+        echo -e "  ${GREEN}+${RESET} $pkg"
+    done
+    echo ""
+fi
+
+if [ ${#DIFFERENT_VERSIONS[@]} -eq 0 ] && [ ${#ONLY_IN_1[@]} -eq 0 ] && [ ${#ONLY_IN_2[@]} -eq 0 ]; then
+    echo -e "${BRIGHT_GREEN}✓ Environments are identical!${RESET}"
+else
+    echo -e "${BRIGHT_CYAN}Summary:${RESET}"
+    echo -e "  ${WHITE}Version differences:${RESET} ${#DIFFERENT_VERSIONS[@]}"
+    echo -e "  ${WHITE}Only in $ENV1_NAME:${RESET} ${#ONLY_IN_1[@]}"
+    echo -e "  ${WHITE}Only in $ENV2_NAME:${RESET} ${#ONLY_IN_2[@]}"
+fi
+
+# Cleanup
+rm "$TEMP1" "$TEMP2"

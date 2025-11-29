@@ -14,6 +14,7 @@ declare -A GROUP_COLORS=(
     ["source-management"]="\e[38;5;82m"      # lime green
     ["venv-management"]="\e[38;5;141m"       # purple
     ["base-management"]="\e[38;5;214m"       # orange
+    ["cache-management"]="\e[38;5;51m"       # cyan
 )
 
 # Find PyLux installation directory
@@ -36,7 +37,7 @@ if [[ -z "$PYLUX_ROOT" ]]; then
 fi
 
 # Collect all PyLux scripts
-mapfile -t SCRIPTS < <(find "$PYLUX_ROOT" -type f -executable \( -path "*/source-management/*" -o -path "*/venv-management/*" -o -path "*/base-management/*" \) | sort)
+mapfile -t SCRIPTS < <(find "$PYLUX_ROOT" -type f -executable \( -path "*/source-management/*" -o -path "*/venv-management/*" -o -path "*/base-management/*" -o -path "*/cache-management/*" \) | sort)
 
 [[ ${#SCRIPTS[@]} -eq 0 ]] && { echo "No PyLux scripts found."; exit 1; }
 
@@ -62,6 +63,8 @@ format_entry() {
             group="venv-management"
         elif [[ "$script" == *"/base-management/"* ]]; then
             group="base-management"
+        elif [[ "$script" == *"/cache-management/"* ]]; then
+            group="cache-management"
         else
             group="unknown"
         fi

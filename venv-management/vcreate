@@ -26,6 +26,8 @@ RESET='\033[0m'
 
 # SET PATHS
 VENV_DIR="$HOME/pylux-venvs"
+CACHE_DIR="$HOME/pylux-cache"
+CACHE_REGISTRY="$CACHE_DIR/registry.json"
 
 echo -e "${BRIGHT_MAGENTA}[*] +++ VENV CREATOR +++${RESET}"
 echo ""
@@ -151,6 +153,114 @@ fi
 echo -e "${BRIGHT_GREEN}✓ Virtual environment created successfully!${RESET}"
 echo ""
 
+# INITIALIZE CACHE IF NEEDED
+if [ ! -d "$CACHE_DIR" ]; then
+    mkdir -p "$CACHE_DIR"
+    echo '{"cache":{}}' > "$CACHE_REGISTRY"
+    echo -e "${GREEN}Initialized package cache at $CACHE_DIR${RESET}"
+fi
+
+# VEX GOLD STANDARD: SAFE HARDLINK CACHE WITH PYTHON VERSION ISOLATION
+install_with_cache() {
+    local package="$1"
+    local venv_path="$2"
+    local python="$venv_path/bin/python"
+    local pip="$venv_path/bin/pip"
+    
+    # Get Python ABI tag (cp311, cp312, etc.)
+    local py_tag=$("$python" -c "import sys; print(f'cp{sys.version_info.major}{sys.version_info.minor}')" 2>/dev/null)
+    
+    if [ -z "$py_tag" ]; then
+        echo -e "${BRIGHT_RED}    ✗ Failed to detect Python version${RESET}"
+        return 1
+    fi
+    
+    # Get site-packages location
+    local sitepkgs=$("$python" -c "import site; print(site.getsitepackages()[0])" 2>/dev/null)
+    
+    if [ -z "$sitepkgs" ]; then
+        echo -e "${BRIGHT_RED}    ✗ Failed to locate site-packages${RESET}"
+        return 1
+    fi
+    
+    # Create cache directory for this Python version
+    mkdir -p "$CACHE_DIR/$py_tag"
+    
+    echo -e "${CYAN}  Installing $package...${RESET}"
+    
+    # Install package normally (pip handles all metadata)
+    "$pip" install --quiet "$package" 2>/dev/null
+    
+    if [ $? -ne 0 ]; then
+        echo -e "${BRIGHT_YELLOW}    ⚠ Failed to install $package${RESET}"
+        return 1
+    fi
+    
+    # Extract package name (strip version specifiers)
+    local pkg_name=$(echo "$package" | sed 's/[<>=!~].*//')
+    
+    # Find the installed package directory (NOT .dist-info)
+    local pkg_dir=$(find "$sitepkgs" -mindepth 1 -maxdepth 1 -type d \
+        \( -name "${pkg_name}" -o -name "${pkg_name//-/_}" \) \
+        ! -name "*.dist-info" ! -name "*.egg-info" \
+        2>/dev/null | head -1)
+    
+    # If no package directory found (e.g., pure metadata packages), that's fine
+    if [ -z "$pkg_dir" ]; then
+        echo -e "${BRIGHT_GREEN}    ✓ Installed $pkg_name${RESET}"
+        return 0
+    fi
+    
+    local pkg_basename=$(basename "$pkg_dir")
+    local cache_pkg_dir="$CACHE_DIR/$py_tag/$pkg_basename"
+    local tmp_cache="${cache_pkg_dir}.tmp.$$"
+    
+    # ATOMIC CACHE WRITE: If package not in cache, cache it atomically
+    if [ ! -d "$cache_pkg_dir" ]; then
+        # Write to temp location first
+        mkdir -p "$tmp_cache"
+        cp -a "$pkg_dir/" "$tmp_cache/" 2>/dev/null
+        
+        if [ $? -eq 0 ]; then
+            # Atomic move into place
+            mv "$tmp_cache" "$cache_pkg_dir" 2>/dev/null
+            
+            if [ $? -eq 0 ]; then
+                echo -e "${BRIGHT_GREEN}    ✓ Cached $pkg_name → $py_tag/$pkg_basename${RESET}"
+            else
+                rm -rf "$tmp_cache" 2>/dev/null
+            fi
+        else
+            rm -rf "$tmp_cache" 2>/dev/null
+        fi
+    fi
+    
+    # SAFE HARDLINK REPLACEMENT: Replace package files with hardlinks to cache
+    # Keep .dist-info in venv (pip metadata), hardlink actual package code
+    if [ -d "$cache_pkg_dir" ]; then
+        rm -rf "$pkg_dir"
+        
+        # Use cp -al for hardlinks (--reflink=auto if supported for CoW filesystems)
+        if cp --help 2>&1 | grep -q reflink; then
+            cp -al --reflink=auto "$cache_pkg_dir" "$sitepkgs/" 2>/dev/null
+        else
+            cp -al "$cache_pkg_dir" "$sitepkgs/" 2>/dev/null
+        fi
+        
+        if [ $? -eq 0 ]; then
+            echo -e "${BRIGHT_GREEN}    ✓ Hardlinked $pkg_name from cache (disk space saved!)${RESET}"
+        else
+            # Fallback: restore from cache without hardlinks
+            cp -a "$cache_pkg_dir" "$sitepkgs/" 2>/dev/null
+            echo -e "${BRIGHT_YELLOW}    ⚠ Installed $pkg_name (hardlink failed, using copy)${RESET}"
+        fi
+    else
+        echo -e "${BRIGHT_GREEN}    ✓ Installed $pkg_name${RESET}"
+    fi
+    
+    return 0
+}
+
 # OFFER TO INSTALL COMMON PACKAGES
 echo -e "${YELLOW}Install common packages? (yes/no): ${RESET}"
 read -r INSTALL_PACKAGES
@@ -199,13 +309,28 @@ if [ "$INSTALL_PACKAGES" == "yes" ] || [ "$INSTALL_PACKAGES" == "y" ]; then
         echo -e "${GREEN}Upgrading pip...${RESET}"
         "$VENV_PATH/bin/pip" install --upgrade pip > /dev/null 2>&1
         
-        echo -e "${GREEN}Installing packages: $PACKAGES${RESET}"
-        "$VENV_PATH/bin/pip" install $PACKAGES
+        echo -e "${GREEN}Installing packages with shared cache...${RESET}"
+        echo -e "${CYAN}(Using Python version isolation for safety)${RESET}"
+        echo ""
         
-        if [ $? -eq 0 ]; then
-            echo -e "${BRIGHT_GREEN}✓ Packages installed successfully${RESET}"
-        else
-            echo -e "${BRIGHT_YELLOW}⚠ Some packages may have failed to install${RESET}"
+        # Install each package with cache
+        for pkg in $PACKAGES; do
+            install_with_cache "$pkg" "$VENV_PATH"
+        done
+        
+        echo ""
+        echo -e "${BRIGHT_GREEN}✓ Package installation complete${RESET}"
+        
+        # Show cache stats
+        if [ -d "$CACHE_DIR" ]; then
+            CACHE_SIZE=$(du -sh "$CACHE_DIR" 2>/dev/null | awk '{print $1}')
+            PY_TAG=$("$VENV_PATH/bin/python" -c "import sys; print(f'cp{sys.version_info.major}{sys.version_info.minor}')" 2>/dev/null)
+            if [ -d "$CACHE_DIR/$PY_TAG" ]; then
+                CACHED_PKGS=$(find "$CACHE_DIR/$PY_TAG" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
+                echo -e "${CYAN}Cache: $CACHE_SIZE ($CACHED_PKGS packages for $PY_TAG)${RESET}"
+            else
+                echo -e "${CYAN}Cache size: $CACHE_SIZE${RESET}"
+            fi
         fi
     fi
 fi
