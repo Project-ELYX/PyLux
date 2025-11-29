@@ -1,0 +1,24 @@
+# Backup files
+*.bak
+*.backup
+*~
+
+# Test environments
+test-venv/
+test-pybase/
+.test-*/
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temp files
+*.tmp
+*.log
