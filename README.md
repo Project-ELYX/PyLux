@@ -4,11 +4,6 @@
 
 Born from frustration with Miniconda's takeover and bloat, PyLux is a lightweight, powerful toolkit for managing Python installations and virtual environments. No package manager dependencies, no conda channels, just clean bash scripts and full control.
 
-This is a collection of optimized scripts and functions I made for my own use, which later expanded into something I figured more people would enjoy having.
-
-# Where did the name "PyLux" come from?
-At this time, PyLux is a collection of bash scripts
-
 ## Why PyLux?
 
 **The Problem:**
