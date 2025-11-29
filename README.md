@@ -172,6 +172,27 @@ py-list                 # See all installed Pythons
   sudo apt install fzf  # Debian/Ubuntu
   ```
 
+**First time? Install all dependencies at once:**
+```bash
+# Debian/Ubuntu
+sudo apt update && sudo apt install -y \
+    build-essential gcc make \
+    libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev \
+    libffi-dev liblzma-dev libncurses5-dev libgdbm-dev libnss3-dev \
+    curl wget git fzf
+
+# Fedora/RHEL
+sudo dnf groupinstall "Development Tools" && \
+sudo dnf install -y \
+    openssl-devel zlib-devel bzip2-devel readline-devel sqlite-devel \
+    libffi-devel xz-devel ncurses-devel gdbm-devel nss-devel \
+    curl wget git fzf
+
+# Arch
+sudo pacman -S --needed base-devel openssl zlib bzip2 readline sqlite \
+    libffi xz ncurses gdbm nss curl wget git fzf
+```
+
 ## Directory Structure
 
 ```
@@ -243,7 +264,7 @@ All paths are simple bash variables - no hidden config files!
 
 ## Contributing
 
-Built in a caffeine-fueled 2 AM coding session. Contributions welcome!
+Built in an ADHD-fueled 2 AM coding session. Contributions welcome!
 
 ## License
 
