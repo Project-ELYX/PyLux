@@ -6,8 +6,13 @@ Born from frustration with Miniconda's takeover and bloat, PyLux is a lightweigh
 
 This is a collection of optimized scripts and functions I made for my own use, which later expanded into something I figured more people would enjoy having.
 
-# Where did the name "PyLux" come from?
-At this time, PyLux is a collection of bash scripts
+## Where did the name "PyLux" come from?
+
+**PyLux** = **Py**thon + **Lux**ury (or **Lux** for Linux, depending on the day)
+
+Started as "Python for Linux" since these are bash scripts optimized for Linux distros. But as it grew, it became more about providing a *luxurious* Python workflow - clean, fast, and without the bloat. Pick whichever interpretation makes you happier. 😎
+
+> **Note:** Currently Linux-only. macOS *might* work (uses bash/zsh too) but hasn't been tested. Windows users: try WSL2!
 
 ## Why PyLux?
 
@@ -37,17 +42,17 @@ PyLux gives you:
 - Smart pre-release detection and warnings
 
 ### Virtual Environment Management
-- **venv-create** - Quick venv creator with Python version picker and package presets
-- **venv-list** - List all venvs with diagnostics (Python version, packages, broken status)
-- **venv-repair** - Resurrect broken venvs by extracting packages from site-packages
-- **venv-repair-local** - Repair in-project venvs
-- **vactivate** - Quick activation: `vactivate myproject` instead of `source ~/venvs/myproject/bin/activate`
+- **vcreate** - Quick venv creator with Python version picker and package presets
+- **vlist** - List all venvs with diagnostics (Python version, packages, broken status)
+- **vrepair** - Resurrect broken venvs by extracting packages from site-packages
+- **vrepair-local** - Repair in-project venvs
+- **vactivate** - Quick activation: `vactivate myproject` instead of `source ~/pylux-venvs/myproject/bin/activate`
 - **vdel** - Safe deletion with confirmation and optional backup
 
 ### Base Environment Management (Conda-style)
-- **pybase-create** - Create specialized base environments (dev, data-science, ml, etc.)
-- **pybase-list** - List all base environments
-- **pybase-shell-integration** - Auto-activate base env on shell start
+- **base-create** - Create specialized base environments (dev, data-science, ml, etc.)
+- **base-list** - List all base environments
+- **base-shell-integration** - Auto-activate base env on shell start
 - **base-switch** - Quickly switch between base environments
 - `deactivate` returns to base env (not fully off!)
 - `deactivate_all` for full deactivation
@@ -68,6 +73,14 @@ source ~/.bashrc  # or ~/.zshrc
 
 ## Quick Start
 
+### Interactive Launcher (Easiest!)
+```bash
+pylux
+# Opens FZF menu with all PyLux tools
+# Color-coded by category, searchable, with previews
+# Perfect if you forget command names!
+```
+
 ### 1. Install a Python version
 ```bash
 py-altinstall
@@ -77,7 +90,7 @@ py-altinstall
 
 ### 2. Create your base environment
 ```bash
-pybase-create
+base-create
 # Name it 'elyx' (or whatever you want)
 # Choose Python version
 # Install packages
@@ -85,27 +98,30 @@ pybase-create
 
 ### 3. Set up persistent base env
 ```bash
-pybase-shell-integration
+base-shell-integration
 source ~/.zshrc
 # Now you'll always have your base env active!
 ```
 
 ### 4. Create project venvs
 ```bash
-venv-create
-# Choose location (~/venvs/ or current directory)
+vcreate
+# Choose location (~/pylux-venvs/ or current directory)
 # Pick Python version
 # Install package presets or custom packages
 ```
 
 ### 5. Use the shortcuts
 ```bash
-vactivate myproject     # Activate ~/venvs/myproject
+pylux                   # Interactive menu (if you forget commands!)
+vactivate myproject     # Activate ~/pylux-venvs/myproject
 deactivate              # Return to base env
-base-switch ml-tools    # Switch to ~/pybase-envs/ml-tools
-venv-list               # See all your venvs
+base-switch ml-tools    # Switch to ~/pylux-base-envs/ml-tools
+vlist                   # See all your venvs
 py-list                 # See all installed Pythons
 ```
+
+**Pro tip:** Can't remember a command? Just type `pylux` and browse the menu!
 
 ## Workflow Example
 
@@ -117,7 +133,7 @@ py-list                 # See all installed Pythons
 (elyx) $ # Back to base env
 
 # Got a broken venv from old Python install?
-(elyx) $ venv-repair
+(elyx) $ vrepair
 # Select broken venv, it extracts packages and rebuilds!
 
 # Want bleeding edge Python?
@@ -130,7 +146,7 @@ py-list                 # See all installed Pythons
 **Source Management:**
 - Downloads Python source from python.org
 - Compiles with optimizations (--enable-optimizations, --with-lto)
-- Installs to `/opt/python-lab/X.Y.Z/`
+- Installs to `/opt/pylux-sources/X.Y.Z/`
 - Creates symlinks like `py313` in `/usr/local/bin/`
 
 **Venv Recovery:**
@@ -151,28 +167,37 @@ py-list                 # See all installed Pythons
 - Bash or Zsh
 - Build tools for compiling Python: `gcc`, `make`, `libssl-dev`, `zlib1g-dev`, `libbz2-dev`, etc.
 - `curl` or `wget`
+- **Optional:** `fzf` for the interactive `pylux` launcher (highly recommended!)
+  ```bash
+  sudo apt install fzf  # Debian/Ubuntu
+  ```
 
 ## Directory Structure
 
 ```
 PyLux/
+├── pylux                  # 🎯 Interactive launcher (main entry point)
 ├── source-management/     # Python compilation and installation
 │   ├── py-altinstall
-│   └── py-list
+│   ├── py-list
+│   └── py-del
 ├── venv-management/       # Virtual environment tools
-│   ├── venv-create
-│   ├── venv-list
-│   ├── venv-repair
-│   ├── venv-repair-local
+│   ├── vcreate
+│   ├── vlist
+│   ├── vrepair
+│   ├── vrepair-local
 │   ├── vactivate
 │   ├── vdel
 │   └── venv-aliases-setup
-└── pybase-management/     # Base environment tools
-    ├── pybase-create
-    ├── pybase-list
-    ├── pybase-shell-integration
-    └── base-switch
+└── base-management/       # Base environment tools
+    ├── base-create
+    ├── base-list
+    ├── base-switch
+    ├── base-delete
+    └── base-shell-integration
 ```
+
+**Tip:** Run `pylux` to see all available tools in an interactive menu!
 
 ## Philosophy
 
@@ -200,13 +225,21 @@ A: Conda is great but it's heavy, takes over your system, and the base environme
 A: Pyenv is excellent but PyLux adds venv management, base environments, and recovery tools in one cohesive system.
 
 **Q: Can I use this alongside conda/pyenv?**
-A: Yes! PyLux installs to `/opt/python-lab/` and uses its own paths. Just don't let conda's auto-activation conflict with PyLux's base env.
+A: Yes! PyLux installs to `/opt/pylux-sources/` and uses its own paths. Just don't let conda's auto-activation conflict with PyLux's base env.
 
 **Q: Is this production-ready?**
 A: It's stable and tested on personal systems. Use at your own discretion. Always backup important environments.
 
 **Q: Can I install alpha/beta Python versions?**
 A: YES! That's one of the best features. Try Python 3.15 alphas before anyone else.
+
+**Q: Can I customize where PyLux stores files?**
+A: Yes! Edit the path variables at the top of each script:
+- **py-altinstall/py-list/py-del**: Change `PYLUX_SOURCES="/opt/pylux-sources"` 
+- **venv scripts**: Change `VENV_DIR="$HOME/pylux-venvs"`
+- **base scripts**: Change `PYBASE_DIR="$HOME/pylux-base-envs"`
+
+All paths are simple bash variables - no hidden config files!
 
 ## Contributing
 

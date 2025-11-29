@@ -21,7 +21,7 @@ RESET='\033[0m'
 echo -e "${BRIGHT_MAGENTA}[*] +++ PYBASE SHELL INTEGRATION +++${RESET}"
 echo ""
 
-PYBASE_DIR="$HOME/pybase-envs"
+PYBASE_DIR="$HOME/pylux-base-envs"
 BASE_ENV_PATH="$PYBASE_DIR/elyx"
 
 # Check if base env exists
@@ -63,7 +63,7 @@ fi
 INTEGRATION_CODE='
 # === PYBASE AUTO-ACTIVATION ===
 # Auto-activate elyx base environment (like conda base)
-export PYBASE_DIR="$HOME/pybase-envs"
+export PYBASE_DIR="$HOME/pylux-base-envs"
 export PYBASE_BASE_ENV="elyx"
 
 # Function to activate base env

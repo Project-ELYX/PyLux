@@ -31,7 +31,7 @@ BRIGHT_WHITE='\033[97m'
 RESET='\033[0m'
 
 # SET PATHS
-PREFIX_PATH="/opt/python-lab/"
+PREFIX_PATH="/opt/pylux-sources/"
 
 echo -e "${MAGENTA}[*] +++ INSTALLED PYTHON VERSIONS +++${RESET}"
 echo ""

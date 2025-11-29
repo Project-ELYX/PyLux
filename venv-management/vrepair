@@ -25,7 +25,7 @@ BRIGHT_MAGENTA='\033[95m'
 RESET='\033[0m'
 
 # SET PATHS
-VENV_DIR="$HOME/venvs"
+VENV_DIR="$HOME/pylux-venvs"
 
 echo -e "${BRIGHT_MAGENTA}[*] +++ VENV REPAIR WIZARD +++${RESET}"
 echo ""

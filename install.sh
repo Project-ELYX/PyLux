@@ -69,12 +69,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Create required directories
 echo ""
 echo -e "${CYAN}Creating directories...${NC}"
-mkdir -p /opt/python-lab
-mkdir -p ~/venvs
-mkdir -p ~/pybase-envs
-echo -e "${GREEN}✓ /opt/python-lab/${NC}"
-echo -e "${GREEN}✓ ~/venvs/${NC}"
-echo -e "${GREEN}✓ ~/pybase-envs/${NC}"
+mkdir -p /opt/pylux-sources
+mkdir -p ~/pylux-venvs
+mkdir -p ~/pylux-base-envs
+echo -e "${GREEN}✓ /opt/pylux-sources/${NC}"
+echo -e "${GREEN}✓ ~/pylux-venvs/${NC}"
+echo -e "${GREEN}✓ ~/pylux-base-envs/${NC}"
 
 # Install source management tools
 echo ""
@@ -103,7 +103,7 @@ done
 # Install pybase management tools
 echo ""
 echo -e "${CYAN}Installing pybase management tools...${NC}"
-for script in "$SCRIPT_DIR"/pybase-management/*; do
+for script in "$SCRIPT_DIR"/base-management/*; do
     if [[ -f "$script" ]]; then
         name=$(basename "$script")
         ln -sf "$script" "$INSTALL_DIR/$name"
@@ -147,25 +147,25 @@ echo -e "${BOLD}1. Install Python:${NC}"
 echo "   py-altinstall"
 echo ""
 echo -e "${BOLD}2. Create base environment:${NC}"
-echo "   pybase-create"
+echo "   base-create"
 echo ""
 echo -e "${BOLD}3. Set up shell integration:${NC}"
-echo "   pybase-shell-integration"
+echo "   base-shell-integration"
 echo "   source ~/.bashrc  # or ~/.zshrc"
 echo ""
 echo -e "${BOLD}4. Create project venvs:${NC}"
-echo "   venv-create"
+echo "   vcreate"
 echo ""
 echo -e "${CYAN}Available Commands:${NC}"
 echo "  ${BOLD}py-altinstall${NC}        - Install Python from source"
 echo "  ${BOLD}py-list${NC}              - List installed Pythons"
-echo "  ${BOLD}venv-create${NC}          - Create new venv"
-echo "  ${BOLD}venv-list${NC}            - List all venvs"
-echo "  ${BOLD}venv-repair${NC}          - Repair broken venvs"
+echo "  ${BOLD}vcreate${NC}          - Create new venv"
+echo "  ${BOLD}vlist${NC}                - List all venvs"
+echo "  ${BOLD}vrepair${NC}          - Repair broken venvs"
 echo "  ${BOLD}vactivate <name>${NC}     - Quick activate venv"
 echo "  ${BOLD}vdel <name>${NC}          - Delete venv"
-echo "  ${BOLD}pybase-create${NC}        - Create base environment"
-echo "  ${BOLD}pybase-list${NC}          - List base environments"
+echo "  ${BOLD}base-create${NC}        - Create base environment"
+echo "  ${BOLD}base-list${NC}          - List base environments"
 echo "  ${BOLD}base-switch <name>${NC}   - Switch base environment"
 echo ""
 echo -e "${BOLD}${MAGENTA}Documentation:${NC} https://github.com/yourusername/PyLux"

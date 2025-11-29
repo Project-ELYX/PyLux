@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 ##! name: vdel
-##! desc: Safely delete virtual environments from ~/venvs/ with confirmation
+##! desc: Safely delete virtual environments from ~/pylux-venvs/ with confirmation
 ##! group: python
 ##! <.ELYX.>
 
@@ -25,7 +25,7 @@ BRIGHT_MAGENTA='\033[95m'
 RESET='\033[0m'
 
 # SET PATHS
-VENV_DIR="$HOME/venvs"
+VENV_DIR="$HOME/pylux-venvs"
 
 echo -e "${BRIGHT_MAGENTA}[*] +++ VENV DELETION +++${RESET}"
 echo ""

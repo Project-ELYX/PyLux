@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 ##! name: base-switch
-##! desc: Quick switch to a base environment from ~/pybase-envs/
+##! desc: Quick switch to a base environment from ~/pylux-base-envs/
 ##! group: python
 ##! <.ELYX.>
 
@@ -13,7 +13,7 @@ if [ "${BASH_SOURCE[0]}" == "${0}" ]; then
     exit 1
 fi
 
-PYBASE_DIR="$HOME/pybase-envs"
+PYBASE_DIR="$HOME/pylux-base-envs"
 
 if [ -z "$1" ]; then
     echo "Usage: base-switch <base-env-name>"

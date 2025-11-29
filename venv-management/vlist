@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 ##! name: venv-list
-##! desc: List all Python virtual environments in ~/venvs/
+##! desc: List all Python virtual environments in ~/pylux-venvs/
 ##! group: python
 ##! <.ELYX.>
 
@@ -24,7 +24,7 @@ BRIGHT_MAGENTA='\033[95m'
 RESET='\033[0m'
 
 # SET PATHS
-VENV_DIR="$HOME/venvs"
+VENV_DIR="$HOME/pylux-venvs"
 
 echo -e "${BRIGHT_MAGENTA}[*] +++ PYTHON VIRTUAL ENVIRONMENTS +++${RESET}"
 echo ""
@@ -138,4 +138,4 @@ if [ "$FOUND_ANY" = false ]; then
 fi
 
 echo -e "${BRIGHT_CYAN}Summary: $COUNT virtual environment(s) found${RESET}"
-echo -e "${BRIGHT_GREEN}Use 'python -m venv ~/venvs/<name>' to create a new virtual environment${RESET}"
+echo -e "${BRIGHT_GREEN}Use 'python -m venv ~/pylux-venvs/<name>' to create a new virtual environment${RESET}"

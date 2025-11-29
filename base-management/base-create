@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-##! name: venv-create
-##! desc: Quick virtual environment creator with Python version selector
+##! name: pybase-create
+##! desc: Create a new base environment in ~/pylux-base-envs/
 ##! group: python
 ##! <.ELYX.>
 
@@ -25,46 +25,31 @@ BRIGHT_MAGENTA='\033[95m'
 RESET='\033[0m'
 
 # SET PATHS
-VENV_DIR="$HOME/venvs"
+PYBASE_DIR="$HOME/pylux-base-envs"
 
-echo -e "${BRIGHT_MAGENTA}[*] +++ VENV CREATOR +++${RESET}"
+echo -e "${BRIGHT_MAGENTA}[*] +++ PYBASE ENV CREATOR +++${RESET}"
 echo ""
 
-# GET VENV NAME
-echo -e "${CYAN}Where do you want to create the venv?${RESET}"
-echo -e "  ${GREEN}1)${RESET} ~/venvs/ (managed venvs)"
-echo -e "  ${GREEN}2)${RESET} Current directory (project venv)"
-echo ""
-echo -e "${WHITE}Enter choice (1 or 2): ${RESET}"
-read -r LOCATION_CHOICE
+# CREATE PYBASE DIR IF NOT EXISTS
+if [ ! -d "$PYBASE_DIR" ]; then
+    echo -e "${YELLOW}Creating ~/pylux-base-envs/ directory...${RESET}"
+    mkdir -p "$PYBASE_DIR"
+fi
 
-if [ "$LOCATION_CHOICE" == "1" ]; then
-    LOCATION="$VENV_DIR"
-    echo ""
-    echo -e "${WHITE}Enter venv name: ${RESET}"
-    read -r VENV_NAME
-    
-    if [ -z "$VENV_NAME" ]; then
-        echo -e "${BRIGHT_RED}Error: Venv name cannot be empty${RESET}"
-        exit 1
-    fi
-    
-    VENV_PATH="$LOCATION/$VENV_NAME"
-elif [ "$LOCATION_CHOICE" == "2" ]; then
-    echo ""
-    echo -e "${WHITE}Enter venv directory name (default: venv): ${RESET}"
-    read -r VENV_NAME
-    
-    VENV_NAME=${VENV_NAME:-venv}
-    VENV_PATH="./$VENV_NAME"
-else
-    echo -e "${BRIGHT_RED}Invalid choice${RESET}"
+# GET ENV NAME
+echo -e "${WHITE}Enter base environment name: ${RESET}"
+read -r ENV_NAME
+
+if [ -z "$ENV_NAME" ]; then
+    echo -e "${BRIGHT_RED}Error: Environment name cannot be empty${RESET}"
     exit 1
 fi
 
+ENV_PATH="$PYBASE_DIR/$ENV_NAME"
+
 # CHECK IF ALREADY EXISTS
-if [ -d "$VENV_PATH" ]; then
-    echo -e "${BRIGHT_RED}Error: Directory $VENV_PATH already exists${RESET}"
+if [ -d "$ENV_PATH" ]; then
+    echo -e "${BRIGHT_RED}Error: Base environment '$ENV_NAME' already exists${RESET}"
     exit 1
 fi
 
@@ -124,68 +109,72 @@ PYTHON_VERSION="${PYTHON_DISPLAY[$((PYTHON_CHOICE-1))]}"
 echo -e "${GREEN}Selected: Python $PYTHON_VERSION${RESET}"
 echo ""
 
-# CREATE VENV
-echo -e "${GREEN}Creating virtual environment...${RESET}"
-"$SELECTED_PYTHON" -m venv "$VENV_PATH"
+# CREATE ENV
+echo -e "${GREEN}Creating base environment...${RESET}"
+"$SELECTED_PYTHON" -m venv "$ENV_PATH"
 
 if [ $? -ne 0 ]; then
     echo -e "${BRIGHT_YELLOW}⚠ Standard venv creation failed, trying without pip...${RESET}"
-    "$SELECTED_PYTHON" -m venv --without-pip "$VENV_PATH"
+    "$SELECTED_PYTHON" -m venv --without-pip "$ENV_PATH"
     
     if [ $? -ne 0 ]; then
-        echo -e "${BRIGHT_RED}✗ Failed to create venv${RESET}"
+        echo -e "${BRIGHT_RED}✗ Failed to create base environment${RESET}"
         exit 1
     fi
     
     # Manually install pip using get-pip.py
     echo -e "${GREEN}Installing pip manually...${RESET}"
-    curl -sS https://bootstrap.pypa.io/get-pip.py | "$VENV_PATH/bin/python"
+    curl -sS https://bootstrap.pypa.io/get-pip.py | "$ENV_PATH/bin/python"
     
     if [ $? -ne 0 ]; then
         echo -e "${BRIGHT_YELLOW}⚠ Failed to install pip automatically${RESET}"
         echo -e "${YELLOW}You can install it later with:${RESET}"
-        echo -e "${WHITE}  curl https://bootstrap.pypa.io/get-pip.py | $VENV_PATH/bin/python${RESET}"
+        echo -e "${WHITE}  curl https://bootstrap.pypa.io/get-pip.py | $ENV_PATH/bin/python${RESET}"
     fi
 fi
 
-echo -e "${BRIGHT_GREEN}✓ Virtual environment created successfully!${RESET}"
+echo -e "${BRIGHT_GREEN}✓ Base environment created successfully!${RESET}"
 echo ""
 
-# OFFER TO INSTALL COMMON PACKAGES
-echo -e "${YELLOW}Install common packages? (yes/no): ${RESET}"
+# OFFER TO INSTALL PACKAGES
+echo -e "${YELLOW}Install packages? (yes/no): ${RESET}"
 read -r INSTALL_PACKAGES
 
 if [ "$INSTALL_PACKAGES" == "yes" ] || [ "$INSTALL_PACKAGES" == "y" ]; then
     echo ""
     echo -e "${CYAN}Select package set:${RESET}"
-    echo -e "  ${GREEN}1)${RESET} Basic (pip, setuptools, wheel)"
-    echo -e "  ${GREEN}2)${RESET} Development (basic + pytest, black, ruff, ipython)"
-    echo -e "  ${GREEN}3)${RESET} Web (basic + fastapi, uvicorn, requests, httpx)"
-    echo -e "  ${GREEN}4)${RESET} Data Science (basic + numpy, pandas, matplotlib, jupyter)"
-    echo -e "  ${GREEN}5)${RESET} Custom (you'll enter packages manually)"
-    echo -e "  ${GREEN}6)${RESET} Skip"
+    echo -e "  ${GREEN}1)${RESET} Essential CLI tools (pip, setuptools, wheel, ipython, httpie)"
+    echo -e "  ${GREEN}2)${RESET} Development full (pytest, black, ruff, mypy, ipython, pre-commit)"
+    echo -e "  ${GREEN}3)${RESET} Data Science (numpy, pandas, matplotlib, scipy, jupyter, seaborn)"
+    echo -e "  ${GREEN}4)${RESET} Web Development (fastapi, uvicorn, requests, httpx, aiohttp, pydantic)"
+    echo -e "  ${GREEN}5)${RESET} ML/AI (torch, transformers, accelerate, datasets, scikit-learn)"
+    echo -e "  ${GREEN}6)${RESET} Custom (you'll enter packages manually)"
+    echo -e "  ${GREEN}7)${RESET} Skip"
     echo ""
     echo -e "${WHITE}Enter choice: ${RESET}"
     read -r PACKAGE_CHOICE
     
     case $PACKAGE_CHOICE in
         1)
-            PACKAGES="pip setuptools wheel"
+            PACKAGES="pip setuptools wheel ipython httpie rich"
             ;;
         2)
-            PACKAGES="pip setuptools wheel pytest black ruff ipython"
+            PACKAGES="pip setuptools wheel pytest black ruff mypy ipython pre-commit pylint"
             ;;
         3)
-            PACKAGES="pip setuptools wheel fastapi uvicorn requests httpx"
+            PACKAGES="pip setuptools wheel numpy pandas matplotlib scipy jupyter seaborn plotly"
             ;;
         4)
-            PACKAGES="pip setuptools wheel numpy pandas matplotlib jupyter"
+            PACKAGES="pip setuptools wheel fastapi uvicorn requests httpx aiohttp pydantic python-dotenv"
             ;;
         5)
+            PACKAGES="pip setuptools wheel torch transformers accelerate datasets scikit-learn"
+            ;;
+        6)
             echo -e "${WHITE}Enter packages (space-separated): ${RESET}"
             read -r PACKAGES
             ;;
-        6)
+        7)
             PACKAGES=""
             ;;
         *)
@@ -197,10 +186,10 @@ if [ "$INSTALL_PACKAGES" == "yes" ] || [ "$INSTALL_PACKAGES" == "y" ]; then
     if [ -n "$PACKAGES" ]; then
         echo ""
         echo -e "${GREEN}Upgrading pip...${RESET}"
-        "$VENV_PATH/bin/pip" install --upgrade pip > /dev/null 2>&1
+        "$ENV_PATH/bin/pip" install --upgrade pip > /dev/null 2>&1
         
         echo -e "${GREEN}Installing packages: $PACKAGES${RESET}"
-        "$VENV_PATH/bin/pip" install $PACKAGES
+        "$ENV_PATH/bin/pip" install $PACKAGES
         
         if [ $? -eq 0 ]; then
             echo -e "${BRIGHT_GREEN}✓ Packages installed successfully${RESET}"
@@ -212,14 +201,16 @@ fi
 
 echo ""
 echo -e "${BRIGHT_GREEN}======================================${RESET}"
-echo -e "${BRIGHT_GREEN}✓✓✓ Venv created successfully!${RESET}"
+echo -e "${BRIGHT_GREEN}✓✓✓ Base environment created!${RESET}"
 echo -e "${BRIGHT_GREEN}======================================${RESET}"
-echo -e "${CYAN}Location: $VENV_PATH${RESET}"
+echo -e "${CYAN}Name:     $ENV_NAME${RESET}"
+echo -e "${CYAN}Location: $ENV_PATH${RESET}"
 echo -e "${CYAN}Python:   $PYTHON_VERSION${RESET}"
 echo ""
 echo -e "${BRIGHT_CYAN}Activate with:${RESET}"
-if [ "$LOCATION_CHOICE" == "1" ]; then
-    echo -e "${WHITE}  source $VENV_PATH/bin/activate${RESET}"
-else
-    echo -e "${WHITE}  source $VENV_NAME/bin/activate${RESET}"
+echo -e "${WHITE}  source $ENV_PATH/bin/activate${RESET}"
+echo ""
+if [ "$ENV_NAME" == "elyx" ]; then
+    echo -e "${BRIGHT_MAGENTA}💡 TIP: This is your base environment!${RESET}"
+    echo -e "${MAGENTA}   Use 'pybase-shell-integration' to set it as your default active env${RESET}"
 fi

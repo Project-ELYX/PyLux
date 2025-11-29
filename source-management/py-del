@@ -1,0 +1,266 @@
+#!/usr/bin/env bash
+
+##! name: py-del
+##! desc: Safely delete Python installations from /opt/pylux-sources/ with confirmation
+##! group: python
+##! <.ELYX.>
+
+# DEFINE ANSI COLOR CODES
+
+# Standard Text
+RED='\033[31m'
+GREEN='\033[32m'
+YELLOW='\033[33m'
+CYAN='\033[36m'
+WHITE='\033[37m'
+
+# Bright Text
+BRIGHT_RED='\033[91m'
+BRIGHT_GREEN='\033[92m'
+BRIGHT_YELLOW='\033[93m'
+BRIGHT_CYAN='\033[96m'
+BRIGHT_MAGENTA='\033[95m'
+
+# Reset
+RESET='\033[0m'
+
+# SET PATHS
+PYLUX_SOURCES="/opt/pylux-sources"
+SYMLINK_DIR="/usr/local/bin"
+
+echo -e "${BRIGHT_MAGENTA}[*] +++ PYTHON INSTALLATION DELETION +++${RESET}"
+echo ""
+
+# CHECK IF PYTHON LAB EXISTS
+if [ ! -d "$PYLUX_SOURCES" ]; then
+    echo -e "${BRIGHT_RED}No Python installations found at $PYLUX_SOURCES${RESET}"
+    exit 0
+fi
+
+# LIST AVAILABLE PYTHON INSTALLATIONS
+echo -e "${BRIGHT_CYAN}Installed Python versions in $PYLUX_SOURCES:${RESET}"
+echo ""
+
+PYTHON_LIST=()
+PYTHON_PATHS=()
+INDEX=1
+
+for python_dir in "$PYLUX_SOURCES"/*/; do
+    if [ -d "$python_dir" ]; then
+        VERSION=$(basename "$python_dir")
+        PYTHON_LIST+=("$VERSION")
+        PYTHON_PATHS+=("$python_dir")
+        
+        # Try to find the python binary
+        PYTHON_BIN=""
+        for candidate in "$python_dir/bin/python"* ; do
+            if [ -x "$candidate" ] && [ ! -L "$candidate" ]; then
+                PYTHON_BIN="$candidate"
+                break
+            fi
+        done
+        
+        if [ -n "$PYTHON_BIN" ]; then
+            PYTHON_VERSION=$("$PYTHON_BIN" --version 2>&1 | awk '{print $2}')
+            
+            # Find associated symlink
+            SYMLINK=""
+            for link in "$SYMLINK_DIR"/py[0-9]*; do
+                if [ -L "$link" ]; then
+                    TARGET=$(readlink -f "$link")
+                    if [[ "$TARGET" == "$python_dir"* ]]; then
+                        SYMLINK=$(basename "$link")
+                        break
+                    fi
+                fi
+            done
+            
+            if [ -n "$SYMLINK" ]; then
+                echo -e "  ${GREEN}$INDEX)${RESET} $VERSION (Python $PYTHON_VERSION) → symlink: ${CYAN}$SYMLINK${RESET}"
+            else
+                echo -e "  ${GREEN}$INDEX)${RESET} $VERSION (Python $PYTHON_VERSION)"
+            fi
+        else
+            echo -e "  ${GREEN}$INDEX)${RESET} $VERSION ${YELLOW}(no python binary found)${RESET}"
+        fi
+        
+        ((INDEX++))
+    fi
+done
+
+if [ ${#PYTHON_LIST[@]} -eq 0 ]; then
+    echo -e "${BRIGHT_YELLOW}No Python installations found${RESET}"
+    exit 0
+fi
+
+echo ""
+echo -e "${WHITE}Enter Python version number to delete (or version directly): ${RESET}"
+read -r SELECTION
+
+# Check if it's a number or version
+if [[ "$SELECTION" =~ ^[0-9]+$ ]]; then
+    # It's a number
+    if [ "$SELECTION" -lt 1 ] || [ "$SELECTION" -gt ${#PYTHON_LIST[@]} ]; then
+        echo -e "${BRIGHT_RED}Invalid selection${RESET}"
+        exit 1
+    fi
+    PYTHON_VERSION="${PYTHON_LIST[$((SELECTION-1))]}"
+    PYTHON_PATH="${PYTHON_PATHS[$((SELECTION-1))]}"
+else
+    # It's a version string
+    PYTHON_VERSION="$SELECTION"
+    PYTHON_PATH="$PYLUX_SOURCES/$PYTHON_VERSION"
+fi
+
+# CHECK IF EXISTS
+if [ ! -d "$PYTHON_PATH" ]; then
+    echo -e "${BRIGHT_RED}Error: Python $PYTHON_VERSION not found at $PYTHON_PATH${RESET}"
+    exit 1
+fi
+
+echo ""
+
+# FIND ALL ASSOCIATED SYMLINKS
+echo -e "${CYAN}Finding associated symlinks...${RESET}"
+SYMLINKS=()
+for link in "$SYMLINK_DIR"/py[0-9]*; do
+    if [ -L "$link" ]; then
+        TARGET=$(readlink -f "$link")
+        if [[ "$TARGET" == "$PYTHON_PATH"* ]]; then
+            SYMLINKS+=("$link")
+            echo -e "  ${YELLOW}Found: $(basename "$link") → $TARGET${RESET}"
+        fi
+    fi
+done
+
+# CHECK FOR ACTIVE USAGE
+ACTIVE_WARNING=""
+if [ -n "$VIRTUAL_ENV" ]; then
+    VENV_PYTHON=$(readlink -f "$VIRTUAL_ENV/bin/python")
+    if [[ "$VENV_PYTHON" == "$PYTHON_PATH"* ]]; then
+        ACTIVE_WARNING="⚠ WARNING: Your currently active venv uses this Python!"
+    fi
+fi
+
+# GET INSTALLATION INFO
+PYTHON_BIN=""
+for candidate in "$PYTHON_PATH/bin/python"* ; do
+    if [ -x "$candidate" ] && [ ! -L "$candidate" ]; then
+        PYTHON_BIN="$candidate"
+        break
+    fi
+done
+
+if [ -n "$PYTHON_BIN" ]; then
+    FULL_VERSION=$("$PYTHON_BIN" --version 2>&1 | awk '{print $2}')
+else
+    FULL_VERSION="unknown"
+fi
+
+# Calculate directory size
+DIR_SIZE=$(du -sh "$PYTHON_PATH" 2>/dev/null | awk '{print $1}')
+
+echo ""
+echo -e "${BRIGHT_CYAN}Python installation details:${RESET}"
+echo -e "  ${WHITE}Version:  $PYTHON_VERSION${RESET}"
+echo -e "  ${WHITE}Location: $PYTHON_PATH${RESET}"
+echo -e "  ${WHITE}Full Ver: $FULL_VERSION${RESET}"
+echo -e "  ${WHITE}Size:     $DIR_SIZE${RESET}"
+if [ ${#SYMLINKS[@]} -gt 0 ]; then
+    echo -e "  ${WHITE}Symlinks: ${#SYMLINKS[@]} symlink(s) will be removed${RESET}"
+fi
+echo ""
+
+if [ -n "$ACTIVE_WARNING" ]; then
+    echo -e "${BRIGHT_RED}$ACTIVE_WARNING${RESET}"
+    echo -e "${YELLOW}You should deactivate your venv first, but we can proceed anyway.${RESET}"
+    echo ""
+fi
+
+# WARNING ABOUT POTENTIAL BREAKAGE
+echo -e "${BRIGHT_YELLOW}⚠ WARNING ⚠${RESET}"
+echo -e "${YELLOW}Deleting this Python installation may break:${RESET}"
+echo -e "${YELLOW}  • Virtual environments created with this Python${RESET}"
+echo -e "${YELLOW}  • Base environments using this Python${RESET}"
+echo -e "${YELLOW}  • Any scripts that reference this installation${RESET}"
+echo ""
+echo -e "${CYAN}Tip: Use 'vlist' and 'base-list' to check for affected environments${RESET}"
+echo ""
+
+# OFFER BACKUP OPTION
+echo -e "${YELLOW}Create backup before deletion? (yes/no): ${RESET}"
+read -r CREATE_BACKUP
+
+if [ "$CREATE_BACKUP" == "yes" ] || [ "$CREATE_BACKUP" == "y" ]; then
+    BACKUP_PATH="${PYTHON_PATH}.backup.$(date +%s)"
+    echo -e "${GREEN}Creating backup...${RESET}"
+    sudo cp -r "$PYTHON_PATH" "$BACKUP_PATH"
+    if [ $? -eq 0 ]; then
+        echo -e "${BRIGHT_GREEN}✓ Backup created: $BACKUP_PATH${RESET}"
+    else
+        echo -e "${BRIGHT_RED}✗ Failed to create backup${RESET}"
+        echo -e "${YELLOW}Continue with deletion anyway? (yes/no): ${RESET}"
+        read -r CONTINUE_ANYWAY
+        if [ "$CONTINUE_ANYWAY" != "yes" ] && [ "$CONTINUE_ANYWAY" != "y" ]; then
+            echo -e "${CYAN}Cancelled${RESET}"
+            exit 0
+        fi
+    fi
+    echo ""
+fi
+
+# FINAL CONFIRMATION
+echo -e "${BRIGHT_RED}⚠⚠⚠ FINAL CONFIRMATION ⚠⚠⚠${RESET}"
+echo -e "${RED}This will permanently delete: $PYTHON_PATH${RESET}"
+if [ ${#SYMLINKS[@]} -gt 0 ]; then
+    echo -e "${RED}And remove ${#SYMLINKS[@]} symlink(s)${RESET}"
+fi
+echo -e "${WHITE}Type the version '$PYTHON_VERSION' to confirm deletion: ${RESET}"
+read -r CONFIRM
+
+if [ "$CONFIRM" != "$PYTHON_VERSION" ]; then
+    echo -e "${BRIGHT_YELLOW}Confirmation failed. Deletion cancelled.${RESET}"
+    exit 0
+fi
+
+# DELETE SYMLINKS FIRST
+if [ ${#SYMLINKS[@]} -gt 0 ]; then
+    echo ""
+    echo -e "${GREEN}Removing symlinks...${RESET}"
+    for link in "${SYMLINKS[@]}"; do
+        sudo rm -f "$link"
+        if [ $? -eq 0 ]; then
+            echo -e "  ${GREEN}✓ Removed $(basename "$link")${RESET}"
+        else
+            echo -e "  ${RED}✗ Failed to remove $(basename "$link")${RESET}"
+        fi
+    done
+fi
+
+# DELETE PYTHON INSTALLATION
+echo ""
+echo -e "${GREEN}Deleting Python installation...${RESET}"
+sudo rm -rf "$PYTHON_PATH"
+
+if [ $? -eq 0 ]; then
+    echo -e "${BRIGHT_GREEN}✓✓✓ Python $PYTHON_VERSION deleted successfully${RESET}"
+    
+    if [ -n "$BACKUP_PATH" ]; then
+        echo ""
+        echo -e "${CYAN}Backup available at: $BACKUP_PATH${RESET}"
+        echo -e "${WHITE}To restore: sudo mv \"$BACKUP_PATH\" \"$PYTHON_PATH\"${RESET}"
+    fi
+    
+    # Update ldconfig if shared libraries were removed
+    echo ""
+    echo -e "${GREEN}Updating shared library cache...${RESET}"
+    sudo ldconfig
+else
+    echo -e "${BRIGHT_RED}✗ Failed to delete Python installation${RESET}"
+    echo -e "${YELLOW}You may need to run this script with sudo${RESET}"
+    exit 1
+fi
+
+echo ""
+echo -e "${BRIGHT_CYAN}Use 'py-list' to see remaining Python installations${RESET}"
+echo -e "${YELLOW}Consider running 'vlist' and 'base-list' to check for broken environments${RESET}"

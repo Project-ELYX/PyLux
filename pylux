@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+
+##! name: pylux
+##! desc: Interactive PyLux tool launcher with FZF
+##! group: pylux
+##! <.ELYX.>
+
+# ANSI Colors
+RESET="\e[0m"
+BOLD="\e[1m"
+
+# Color mapping for PyLux tool groups
+declare -A GROUP_COLORS=(
+    ["source-management"]="\e[38;5;82m"      # lime green
+    ["venv-management"]="\e[38;5;141m"       # purple
+    ["base-management"]="\e[38;5;214m"       # orange
+)
+
+# Find PyLux installation directory
+PYLUX_ROOT=""
+for possible_root in \
+    "$(dirname "$(readlink -f "$0")")" \
+    "$HOME/.local/share/pylux" \
+    "/usr/local/share/pylux" \
+    "/opt/pylux"
+do
+    if [[ -d "$possible_root/source-management" ]]; then
+        PYLUX_ROOT="$possible_root"
+        break
+    fi
+done
+
+if [[ -z "$PYLUX_ROOT" ]]; then
+    echo "Error: Could not find PyLux installation directory"
+    exit 1
+fi
+
+# Collect all PyLux scripts
+mapfile -t SCRIPTS < <(find "$PYLUX_ROOT" -type f -executable \( -path "*/source-management/*" -o -path "*/venv-management/*" -o -path "*/base-management/*" \) | sort)
+
+[[ ${#SCRIPTS[@]} -eq 0 ]] && { echo "No PyLux scripts found."; exit 1; }
+
+# Format entry for FZF
+format_entry() {
+    local script="$1"
+    local name desc group color
+
+    # Extract metadata from script header
+    name=$(grep -m1 '^##! name:' "$script" | sed 's/##! name: *//')
+    desc=$(grep -m1 '^##! desc:' "$script" | sed 's/##! desc: *//')
+    group=$(grep -m1 '^##! group:' "$script" | sed 's/##! group: *//')
+
+    # Fallbacks
+    [[ -z "$name" ]] && name=$(basename "$script")
+    [[ -z "$desc" ]] && desc="(no description)"
+    
+    # Determine group from path if not in metadata
+    if [[ -z "$group" ]]; then
+        if [[ "$script" == *"/source-management/"* ]]; then
+            group="source-management"
+        elif [[ "$script" == *"/venv-management/"* ]]; then
+            group="venv-management"
+        elif [[ "$script" == *"/base-management/"* ]]; then
+            group="base-management"
+        else
+            group="unknown"
+        fi
+    fi
+
+    # Pick color or default
+    color="${GROUP_COLORS[$group]:-\e[38;5;250m}"  # fallback grey
+
+    # Colorize group
+    local group_colored="${color}${group}${RESET}"
+
+    echo -e "${BOLD}${name}${RESET} [${group_colored}] — ${desc} :: $script"
+}
+
+# Build display list
+PRETTY_LIST=$(for script in "${SCRIPTS[@]}"; do
+    format_entry "$script"
+done)
+
+# Check if FZF is installed
+if ! command -v fzf &> /dev/null; then
+    echo "Error: fzf is not installed"
+    echo "Install with: sudo apt install fzf"
+    echo ""
+    echo "Available scripts:"
+    echo "$PRETTY_LIST" | sed 's/ :: .*//'
+    exit 1
+fi
+
+# FZF fullscreen, sexy view, right-side preview
+SELECTED=$(
+    echo "$PRETTY_LIST" | fzf \
+        --ansi \
+        --prompt="🐍 PyLux → " \
+        --height=100% \
+        --layout=reverse \
+        --border=rounded \
+        --preview-window=right:60%:wrap \
+        --delimiter=" :: " \
+        --with-nth=1 \
+        --header="Python Environment Management" \
+        --preview='
+            script_path={2}
+            echo -e "\e[1;36m=== Script Details ===\e[0m"
+            echo ""
+            grep "^##!" "$script_path" | sed "s/##! //" || echo "(no metadata)"
+            echo ""
+            echo -e "\e[1;33m=== Location ===\e[0m"
+            echo "$script_path"
+            echo ""
+            echo -e "\e[1;32m=== Usage ===\e[0m"
+            head -50 "$script_path" | grep -A 20 "# Usage:" || echo "Run script to see usage"
+        '
+)
+
+# Extract real script path
+SCRIPT_PATH=$(awk -F ' :: ' '{print $2}' <<< "$SELECTED")
+
+# Execute script if chosen
+if [[ -n "$SCRIPT_PATH" ]]; then
+    echo ""
+    echo -e "\e[1;36mRunning: $(basename "$SCRIPT_PATH")\e[0m"
+    echo ""
+    exec "$SCRIPT_PATH" "$@"
+fi

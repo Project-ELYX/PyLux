@@ -1,0 +1,186 @@
+#!/usr/bin/env bash
+
+##! name: base-delete
+##! desc: Safely delete base environments from ~/pylux-base-envs/ with confirmation
+##! group: python
+##! <.ELYX.>
+
+# DEFINE ANSI COLOR CODES
+
+# Standard Text
+RED='\033[31m'
+GREEN='\033[32m'
+YELLOW='\033[33m'
+CYAN='\033[36m'
+WHITE='\033[37m'
+
+# Bright Text
+BRIGHT_RED='\033[91m'
+BRIGHT_GREEN='\033[92m'
+BRIGHT_YELLOW='\033[93m'
+BRIGHT_CYAN='\033[96m'
+BRIGHT_MAGENTA='\033[95m'
+
+# Reset
+RESET='\033[0m'
+
+# SET PATHS
+PYBASE_DIR="$HOME/pylux-base-envs"
+
+echo -e "${BRIGHT_MAGENTA}[*] +++ BASE ENVIRONMENT DELETION +++${RESET}"
+echo ""
+
+# CHECK IF PYBASE DIRECTORY EXISTS
+if [ ! -d "$PYBASE_DIR" ]; then
+    echo -e "${BRIGHT_RED}No pybase directory found at $PYBASE_DIR${RESET}"
+    exit 0
+fi
+
+# LIST AVAILABLE BASE ENVS
+echo -e "${BRIGHT_CYAN}Available base environments in $PYBASE_DIR:${RESET}"
+echo ""
+
+PYBASE_LIST=()
+INDEX=1
+
+for pybase_path in "$PYBASE_DIR"/*/; do
+    if [ -d "$pybase_path" ]; then
+        PYBASE_NAME=$(basename "$pybase_path")
+        PYBASE_LIST+=("$PYBASE_NAME")
+        
+        # Check if it's currently active
+        if [ -n "$VIRTUAL_ENV" ] && [ "$VIRTUAL_ENV" == "$pybase_path" ]; then
+            echo -e "  ${GREEN}$INDEX)${RESET} $PYBASE_NAME ${YELLOW}(currently active)${RESET}"
+        else
+            echo -e "  ${GREEN}$INDEX)${RESET} $PYBASE_NAME"
+        fi
+        ((INDEX++))
+    fi
+done
+
+if [ ${#PYBASE_LIST[@]} -eq 0 ]; then
+    echo -e "${BRIGHT_YELLOW}No base environments found${RESET}"
+    exit 0
+fi
+
+echo ""
+echo -e "${WHITE}Enter base env number to delete (or name directly): ${RESET}"
+read -r SELECTION
+
+# Check if it's a number or name
+if [[ "$SELECTION" =~ ^[0-9]+$ ]]; then
+    # It's a number
+    if [ "$SELECTION" -lt 1 ] || [ "$SELECTION" -gt ${#PYBASE_LIST[@]} ]; then
+        echo -e "${BRIGHT_RED}Invalid selection${RESET}"
+        exit 1
+    fi
+    PYBASE_NAME="${PYBASE_LIST[$((SELECTION-1))]}"
+else
+    # It's a name
+    PYBASE_NAME="$SELECTION"
+fi
+
+PYBASE_PATH="$PYBASE_DIR/$PYBASE_NAME"
+
+# CHECK IF EXISTS
+if [ ! -d "$PYBASE_PATH" ]; then
+    echo -e "${BRIGHT_RED}Error: Base environment '$PYBASE_NAME' not found${RESET}"
+    exit 1
+fi
+
+# SPECIAL WARNING FOR "elyx" BASE ENV
+if [ "$PYBASE_NAME" == "elyx" ]; then
+    echo -e "${BRIGHT_RED}⚠⚠⚠ WARNING: You're about to delete your primary 'elyx' base environment! ⚠⚠⚠${RESET}"
+    echo -e "${YELLOW}This is the default base env that auto-activates on shell start.${RESET}"
+    echo -e "${YELLOW}You may need to reconfigure your shell integration after this.${RESET}"
+    echo ""
+fi
+
+# WARN IF CURRENTLY ACTIVE
+if [ -n "$VIRTUAL_ENV" ] && [ "$VIRTUAL_ENV" == "$PYBASE_PATH" ]; then
+    echo -e "${BRIGHT_RED}⚠ WARNING: This base environment is currently active!${RESET}"
+    echo -e "${YELLOW}You should run 'deactivate_all' first, but we can proceed anyway.${RESET}"
+    echo ""
+fi
+
+# GET BASE ENV INFO
+PYTHON_BIN="$PYBASE_PATH/bin/python"
+if [ -f "$PYTHON_BIN" ]; then
+    PYTHON_VERSION=$("$PYTHON_BIN" --version 2>&1 | awk '{print $2}')
+    if [ -f "$PYBASE_PATH/bin/pip" ]; then
+        PACKAGE_COUNT=$("$PYBASE_PATH/bin/pip" list 2>/dev/null | tail -n +3 | wc -l)
+    else
+        PACKAGE_COUNT="unknown"
+    fi
+else
+    PYTHON_VERSION="unknown"
+    PACKAGE_COUNT="unknown"
+fi
+
+echo -e "${BRIGHT_CYAN}Base environment details:${RESET}"
+echo -e "  ${WHITE}Name:     $PYBASE_NAME${RESET}"
+echo -e "  ${WHITE}Location: $PYBASE_PATH${RESET}"
+echo -e "  ${WHITE}Python:   $PYTHON_VERSION${RESET}"
+echo -e "  ${WHITE}Packages: $PACKAGE_COUNT${RESET}"
+echo ""
+
+# OFFER BACKUP OPTION
+echo -e "${YELLOW}Create backup before deletion? (yes/no): ${RESET}"
+read -r CREATE_BACKUP
+
+if [ "$CREATE_BACKUP" == "yes" ] || [ "$CREATE_BACKUP" == "y" ]; then
+    BACKUP_PATH="${PYBASE_PATH}.backup.$(date +%s)"
+    echo -e "${GREEN}Creating backup...${RESET}"
+    cp -r "$PYBASE_PATH" "$BACKUP_PATH"
+    if [ $? -eq 0 ]; then
+        echo -e "${BRIGHT_GREEN}✓ Backup created: $BACKUP_PATH${RESET}"
+    else
+        echo -e "${BRIGHT_RED}✗ Failed to create backup${RESET}"
+        echo -e "${YELLOW}Continue with deletion anyway? (yes/no): ${RESET}"
+        read -r CONTINUE_ANYWAY
+        if [ "$CONTINUE_ANYWAY" != "yes" ] && [ "$CONTINUE_ANYWAY" != "y" ]; then
+            echo -e "${CYAN}Cancelled${RESET}"
+            exit 0
+        fi
+    fi
+    echo ""
+fi
+
+# FINAL CONFIRMATION
+echo -e "${BRIGHT_RED}⚠ FINAL CONFIRMATION ⚠${RESET}"
+echo -e "${RED}This will permanently delete: $PYBASE_PATH${RESET}"
+echo -e "${WHITE}Type the base env name '$PYBASE_NAME' to confirm deletion: ${RESET}"
+read -r CONFIRM
+
+if [ "$CONFIRM" != "$PYBASE_NAME" ]; then
+    echo -e "${BRIGHT_YELLOW}Confirmation failed. Deletion cancelled.${RESET}"
+    exit 0
+fi
+
+# DELETE
+echo -e "${GREEN}Deleting base environment...${RESET}"
+rm -rf "$PYBASE_PATH"
+
+if [ $? -eq 0 ]; then
+    echo -e "${BRIGHT_GREEN}✓✓✓ Base environment '$PYBASE_NAME' deleted successfully${RESET}"
+    
+    if [ -n "$BACKUP_PATH" ]; then
+        echo ""
+        echo -e "${CYAN}Backup available at: $BACKUP_PATH${RESET}"
+        echo -e "${WHITE}To restore: mv \"$BACKUP_PATH\" \"$PYBASE_PATH\"${RESET}"
+    fi
+    
+    # Extra warning if elyx was deleted
+    if [ "$PYBASE_NAME" == "elyx" ]; then
+        echo ""
+        echo -e "${BRIGHT_YELLOW}⚠ Your primary 'elyx' base env has been deleted${RESET}"
+        echo -e "${CYAN}To create a new one: pybase-create${RESET}"
+        echo -e "${CYAN}To update shell integration: pybase-shell-integration${RESET}"
+    fi
+else
+    echo -e "${BRIGHT_RED}✗ Failed to delete base environment${RESET}"
+    exit 1
+fi
+
+echo ""
+echo -e "${BRIGHT_CYAN}Use 'pybase-list' to see remaining base environments${RESET}"

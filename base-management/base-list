@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 ##! name: pybase-list
-##! desc: List all base environments in ~/pybase-envs/
+##! desc: List all base environments in ~/pylux-base-envs/
 ##! group: python
 ##! <.ELYX.>
 
@@ -24,7 +24,7 @@ BRIGHT_MAGENTA='\033[95m'
 RESET='\033[0m'
 
 # SET PATHS
-PYBASE_DIR="$HOME/pybase-envs"
+PYBASE_DIR="$HOME/pylux-base-envs"
 
 echo -e "${BRIGHT_MAGENTA}[*] +++ PYBASE ENVIRONMENTS +++${RESET}"
 echo ""

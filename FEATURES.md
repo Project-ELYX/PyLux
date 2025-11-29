@@ -27,7 +27,7 @@ py-altinstall
 - Handles binary naming edge cases for alphas/betas
 
 **Installation Location:**
-- Python installations: `/opt/python-lab/X.Y.Z/`
+- Python installations: `/opt/pylux-sources/X.Y.Z/`
 - Symlinks: `/usr/local/bin/pyXYZ`
 - Shared libraries: Registered with `ldconfig`
 
@@ -45,7 +45,7 @@ py-altinstall
 $ py-altinstall
 # Select Python 3.13.9
 # Compiles with optimizations
-# Creates symlink: py313 -> /opt/python-lab/3.13.9/bin/python3.13
+# Creates symlink: py313 -> /opt/pylux-sources/3.13.9/bin/python3.13
 ```
 
 ---
@@ -59,7 +59,7 @@ py-list
 ```
 
 **Features:**
-- Auto-detects Python binaries in `/opt/python-lab/`
+- Auto-detects Python binaries in `/opt/pylux-sources/`
 - Shows full version output
 - Displays associated symlinks
 - Color-coded output
@@ -71,11 +71,11 @@ py-list
 ══════════════════════════════════════════════════════════════
 
 Python 3.13.9 (main, Jan 15 2025, 01:23:45)
-  Location: /opt/python-lab/3.13.9/bin/python3.13
+  Location: /opt/pylux-sources/3.13.9/bin/python3.13
   Symlinks: py313
 
 Python 3.15.0a2 (main, Jan 15 2025, 01:45:12)
-  Location: /opt/python-lab/3.15.0a2/bin/python3.15
+  Location: /opt/pylux-sources/3.15.0a2/bin/python3.15
   Symlinks: py315
 ```
 
@@ -83,17 +83,17 @@ Python 3.15.0a2 (main, Jan 15 2025, 01:45:12)
 
 ## Virtual Environment Management
 
-### venv-create
+### vcreate
 
 **Quick venv creator with Python picker and presets**
 
 ```bash
-venv-create
+vcreate
 ```
 
 **Features:**
 - Lists all available Python versions
-- Choose location: `~/venvs/` or current directory
+- Choose location: `~/pylux-venvs/` or current directory
 - Package presets:
   - **Basic** - Just pip, setuptools, wheel
   - **Dev** - pytest, black, flake8, mypy, ipython
@@ -105,26 +105,26 @@ venv-create
 
 **Example:**
 ```bash
-$ venv-create
+$ vcreate
 # Select py313
 # Name: web-scraper
-# Location: ~/venvs/
+# Location: ~/pylux-venvs/
 # Preset: Web
 # Installs: requests, beautifulsoup4, lxml, aiohttp
 ```
 
 ---
 
-### venv-list
+### vlist
 
 **List and diagnose all virtual environments**
 
 ```bash
-venv-list
+vlist
 ```
 
 **Features:**
-- Scans `~/venvs/` directory
+- Scans `~/pylux-venvs/` directory
 - Shows Python version
 - Shows pip version
 - Package count
@@ -136,7 +136,7 @@ venv-list
 
 **Example Output:**
 ```
-🐍 Virtual Environments in ~/venvs/
+🐍 Virtual Environments in ~/pylux-venvs/
 ══════════════════════════════════════════════════════════════
 
 ✓ web-scraper
@@ -150,12 +150,12 @@ venv-list
 
 ---
 
-### venv-repair
+### vrepair
 
 **Resurrect broken venvs by extracting packages**
 
 ```bash
-venv-repair
+vrepair
 ```
 
 **Features:**
@@ -172,7 +172,7 @@ venv-repair
 - Reinstalls all packages
 
 **Workflow:**
-1. Lists all venvs in `~/venvs/`
+1. Lists all venvs in `~/pylux-venvs/`
 2. Shows broken venvs
 3. Prompts for selection
 4. Extracts package list
@@ -183,7 +183,7 @@ venv-repair
 
 **Example:**
 ```bash
-$ venv-repair
+$ vrepair
 # Select: old-project (broken)
 # Found packages: numpy, pandas, requests, etc.
 # Old Python: 3.11.5
@@ -193,15 +193,15 @@ $ venv-repair
 
 ---
 
-### venv-repair-local
+### vrepair-local
 
 **Repair in-project virtual environments**
 
 ```bash
-venv-repair-local
+vrepair-local
 ```
 
-Same features as `venv-repair` but:
+Same features as `vrepair` but:
 - Scans current directory for venv folders
 - Detects: `venv/`, `.venv/`, `env/`, `.env/`
 - Repairs in-place
@@ -217,9 +217,9 @@ vactivate <name>
 ```
 
 **Features:**
-- Sources `~/venvs/<name>/bin/activate`
+- Sources `~/pylux-venvs/<name>/bin/activate`
 - Lists available venvs if no name provided
-- Shorter than `source ~/venvs/myproject/bin/activate`
+- Shorter than `source ~/pylux-venvs/myproject/bin/activate`
 - Must be sourced (use alias: `alias vactivate='source vactivate'`)
 
 **Setup:**
@@ -256,21 +256,21 @@ vdel <name>
 $ vdel old-project
 Create backup? [y/N]: y
 Type name to confirm: old-project
-✓ Backed up to ~/venvs/old-project.bak
-✓ Deleted ~/venvs/old-project
-To restore: mv ~/venvs/old-project.bak ~/venvs/old-project
+✓ Backed up to ~/pylux-venvs/old-project.bak
+✓ Deleted ~/pylux-venvs/old-project
+To restore: mv ~/pylux-venvs/old-project.bak ~/pylux-venvs/old-project
 ```
 
 ---
 
 ## Base Environment Management
 
-### pybase-create
+### base-create
 
 **Create specialized base environments**
 
 ```bash
-pybase-create
+base-create
 ```
 
 **Features:**
@@ -281,26 +281,26 @@ pybase-create
   - **Web** - flask, fastapi, requests, httpx, jinja2
   - **ML/AI** - numpy, pandas, scikit-learn, torch (warning about size)
 - Special handling for "elyx" base env
-- Installs to `~/pybase-envs/`
+- Installs to `~/pylux-base-envs/`
 - Full control over Python version
 
 **Example:**
 ```bash
-$ pybase-create
+$ base-create
 # Name: elyx
 # Python: py313
 # Preset: Dev
-# Creates ~/pybase-envs/elyx/ with pytest, black, ruff, mypy
+# Creates ~/pylux-base-envs/elyx/ with pytest, black, ruff, mypy
 ```
 
 ---
 
-### pybase-list
+### base-list
 
 **List all base environments**
 
 ```bash
-pybase-list
+base-list
 ```
 
 **Features:**
@@ -311,7 +311,7 @@ pybase-list
 
 **Example Output:**
 ```
-⭐ Base Environments in ~/pybase-envs/
+⭐ Base Environments in ~/pylux-base-envs/
 ══════════════════════════════════════════════════════════════
 
 ⭐ elyx (ACTIVE)
@@ -327,12 +327,12 @@ pybase-list
 
 ---
 
-### pybase-shell-integration
+### base-shell-integration
 
 **Auto-activate base env on shell start**
 
 ```bash
-pybase-shell-integration
+base-shell-integration
 ```
 
 **Features:**
@@ -346,8 +346,8 @@ pybase-shell-integration
 **Integration Code Added:**
 ```bash
 # PyLux Base Environment Auto-Activation
-if [[ -z "$VIRTUAL_ENV" && -f ~/pybase-envs/elyx/bin/activate ]]; then
-    source ~/pybase-envs/elyx/bin/activate
+if [[ -z "$VIRTUAL_ENV" && -f ~/pylux-base-envs/elyx/bin/activate ]]; then
+    source ~/pylux-base-envs/elyx/bin/activate
 fi
 
 # Override deactivate to return to base
@@ -356,8 +356,8 @@ function deactivate() {
         command deactivate
     else
         command deactivate
-        if [[ -f ~/pybase-envs/elyx/bin/activate ]]; then
-            source ~/pybase-envs/elyx/bin/activate
+        if [[ -f ~/pylux-base-envs/elyx/bin/activate ]]; then
+            source ~/pylux-base-envs/elyx/bin/activate
         fi
     fi
 }
@@ -418,10 +418,10 @@ exec-all [directory]
 py-altinstall  # Select 3.13.9
 
 # Create base env
-pybase-create  # Name: elyx, Python: py313, Preset: Dev
+base-create  # Name: elyx, Python: py313, Preset: Dev
 
 # Set up shell integration
-pybase-shell-integration
+base-shell-integration
 
 # Reload shell
 source ~/.bashrc
@@ -435,7 +435,7 @@ source ~/.bashrc
 ```bash
 # Create project venv
 (elyx) $ cd ~/projects/myproject
-(elyx) $ venv-create  # Name: myproject, Preset: Web
+(elyx) $ vcreate  # Name: myproject, Preset: Web
 
 # Activate for work
 (elyx) $ vactivate myproject
@@ -451,10 +451,10 @@ source ~/.bashrc
 ### Pattern 3: Recovering from Disaster
 ```bash
 # Migrated from conda? Broken venvs?
-(elyx) $ venv-list
+(elyx) $ vlist
 # Shows broken venvs
 
-(elyx) $ venv-repair
+(elyx) $ vrepair
 # Select broken venv
 # Extracts packages from site-packages
 # Rebuilds with new Python
@@ -472,7 +472,7 @@ py-altinstall  # Select 3.15.0a2
 py-list  # Shows py315
 
 # Create test venv
-venv-create  # Name: py315-test, Python: py315
+vcreate  # Name: py315-test, Python: py315
 
 # Experiment!
 vactivate py315-test
@@ -488,29 +488,29 @@ Python 3.15.0a2
 ```bash
 # Skip prompts by setting PYTHON_VERSION
 export PYTHON_VERSION=py313
-venv-create
+vcreate
 ```
 
 **Batch venv creation:**
 ```bash
 for proj in project1 project2 project3; do
     echo "Creating $proj..."
-    # Use venv-create interactively or script it
+    # Use vcreate interactively or script it
 done
 ```
 
 **Check before repairing:**
 ```bash
-venv-list  # See what's broken
+vlist  # See what's broken
 py-list    # See available Pythons
-venv-repair  # Fix broken venvs
+vrepair  # Fix broken venvs
 ```
 
 **Multiple base envs for different workflows:**
 ```bash
-pybase-create  # Name: dev, Preset: Dev
-pybase-create  # Name: data, Preset: Data Science
-pybase-create  # Name: ml, Preset: ML/AI
+base-create  # Name: dev, Preset: Dev
+base-create  # Name: data, Preset: Data Science
+base-create  # Name: ml, Preset: ML/AI
 
 # Switch as needed
 base-switch dev   # For coding
@@ -529,7 +529,7 @@ base-switch ml    # For training models
       libreadline-dev libsqlite3-dev libffi-dev liblzma-dev
   ```
 
-**Problem: venv-create fails with ensurepip error**
+**Problem: vcreate fails with ensurepip error**
 - Solution: Script auto-falls back to get-pip.py
 - Manual: `py313 -m pip install --upgrade pip`
 
@@ -543,14 +543,14 @@ base-switch ml    # For training models
 **Problem: Base env doesn't auto-activate**
 - Solution: Re-run shell integration
   ```bash
-  pybase-shell-integration
+  base-shell-integration
   source ~/.zshrc
   ```
 
 **Problem: Can't delete broken venv**
 - Solution: Use `rm -rf` directly
   ```bash
-  rm -rf ~/venvs/broken-venv
+  rm -rf ~/pylux-venvs/broken-venv
   ```
 
 ---
@@ -561,7 +561,7 @@ base-switch ml    # For training models
 
 Edit `py-altinstall` configure flags:
 ```bash
-./configure --prefix=/opt/python-lab/$VERSION \
+./configure --prefix=/opt/pylux-sources/$VERSION \
     --enable-optimizations \
     --with-lto \
     --enable-shared \
@@ -570,22 +570,22 @@ Edit `py-altinstall` configure flags:
 
 ### Shared Libraries Across Venvs
 
-Base envs in `~/pybase-envs/` can be used as system-wide package repos:
+Base envs in `~/pylux-base-envs/` can be used as system-wide package repos:
 ```bash
 # Install in base
 (elyx) $ pip install numpy
 
 # Use in venv via --system-site-packages
-venv-create  # Add flag in script
+vcreate  # Add flag in script
 ```
 
 ### Automated Venv Creation
 
 Script venv creation with heredocs:
 ```bash
-cat << EOF | venv-create
+cat << EOF | vcreate
 myproject
-~/venvs/
+~/pylux-venvs/
 py313
 3
 requests beautifulsoup4
@@ -611,30 +611,30 @@ EOF
 ## File Locations Reference
 
 ```
-/opt/python-lab/          # Compiled Python installations
+/opt/pylux-sources/          # Compiled Python installations
   ├── 3.13.9/
   ├── 3.12.7/
   └── 3.15.0a2/
 
-~/venvs/                  # Project virtual environments
+~/pylux-venvs/                  # Project virtual environments
   ├── myproject/
   ├── web-scraper/
   └── data-analysis/
 
-~/pybase-envs/            # Base environments
+~/pylux-base-envs/            # Base environments
   ├── elyx/
   ├── dev/
   └── ml-tools/
 
 /usr/local/bin/           # Symlinks
-  ├── py313 -> /opt/python-lab/3.13.9/bin/python3.13
-  ├── py312 -> /opt/python-lab/3.12.7/bin/python3.12
-  └── py315 -> /opt/python-lab/3.15.0a2/bin/python3.15
+  ├── py313 -> /opt/pylux-sources/3.13.9/bin/python3.13
+  ├── py312 -> /opt/pylux-sources/3.12.7/bin/python3.12
+  └── py315 -> /opt/pylux-sources/3.15.0a2/bin/python3.15
 
 ~/bin/                    # PyLux scripts (after install)
   ├── py-altinstall
-  ├── venv-create
-  ├── pybase-create
+  ├── vcreate
+  ├── base-create
   └── ...
 ```
 
