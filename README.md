@@ -91,7 +91,7 @@ py-altinstall
 ### 2. Create your base environment
 ```bash
 base-create
-# Name it 'elyx' (or whatever you want)
+# Name it 'mybase' (or whatever you want)
 # Choose Python version
 # Install packages
 ```
@@ -126,18 +126,18 @@ py-list                 # See all installed Pythons
 ## Workflow Example
 
 ```bash
-# Your shell starts with (elyx) base env active
-(elyx) $ vactivate web-scraper
+# Your shell starts with (mybase) base env active
+(mybase) $ vactivate web-scraper
 (web-scraper) $ # Work on project
 (web-scraper) $ deactivate
-(elyx) $ # Back to base env
+(mybase) $ # Back to base env
 
 # Got a broken venv from old Python install?
-(elyx) $ vrepair
+(mybase) $ vrepair
 # Select broken venv, it extracts packages and rebuilds!
 
 # Want bleeding edge Python?
-(elyx) $ py-altinstall
+(mybase) $ py-altinstall
 # Say yes to alpha/beta versions, install Python 3.15.0a2
 ```
 

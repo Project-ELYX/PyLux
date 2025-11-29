@@ -280,17 +280,17 @@ base-create
   - **Data Science** - numpy, pandas, matplotlib, jupyter, seaborn
   - **Web** - flask, fastapi, requests, httpx, jinja2
   - **ML/AI** - numpy, pandas, scikit-learn, torch (warning about size)
-- Special handling for "elyx" base env
+- Special handling for "default" base env
 - Installs to `~/pylux-base-envs/`
 - Full control over Python version
 
 **Example:**
 ```bash
 $ base-create
-# Name: elyx
+# Name: mybase
 # Python: py313
 # Preset: Dev
-# Creates ~/pylux-base-envs/elyx/ with pytest, black, ruff, mypy
+# Creates ~/pylux-base-envs/mybase/ with pytest, black, ruff, mypy
 ```
 
 ---
@@ -314,7 +314,7 @@ base-list
 ⭐ Base Environments in ~/pylux-base-envs/
 ══════════════════════════════════════════════════════════════
 
-⭐ elyx (ACTIVE)
+⭐ mybase (ACTIVE)
   Python: 3.13.9
   Pip: 24.3.1
   Packages: 52
@@ -336,7 +336,7 @@ base-shell-integration
 ```
 
 **Features:**
-- Prompts for base env name (suggests "elyx")
+- Prompts for base env name (suggests "default")
 - Modifies `.bashrc` and `.zshrc`
 - Auto-activates on shell start
 - Overrides `deactivate` to return to base
@@ -346,8 +346,8 @@ base-shell-integration
 **Integration Code Added:**
 ```bash
 # PyLux Base Environment Auto-Activation
-if [[ -z "$VIRTUAL_ENV" && -f ~/pylux-base-envs/elyx/bin/activate ]]; then
-    source ~/pylux-base-envs/elyx/bin/activate
+if [[ -z "$VIRTUAL_ENV" && -f ~/pylux-base-envs/mybase/bin/activate ]]; then
+    source ~/pylux-base-envs/mybase/bin/activate
 fi
 
 # Override deactivate to return to base
@@ -356,8 +356,8 @@ function deactivate() {
         command deactivate
     else
         command deactivate
-        if [[ -f ~/pylux-base-envs/elyx/bin/activate ]]; then
-            source ~/pylux-base-envs/elyx/bin/activate
+        if [[ -f ~/pylux-base-envs/mybase/bin/activate ]]; then
+            source ~/pylux-base-envs/mybase/bin/activate
         fi
     fi
 }
@@ -386,7 +386,7 @@ base-switch <name>
 
 **Example:**
 ```bash
-(elyx) $ base-switch ml-tools
+(mybase) $ base-switch ml-tools
 (ml-tools) $
 ```
 
@@ -418,7 +418,7 @@ exec-all [directory]
 py-altinstall  # Select 3.13.9
 
 # Create base env
-base-create  # Name: elyx, Python: py313, Preset: Dev
+base-create  # Name: mybase, Python: py313, Preset: Dev
 
 # Set up shell integration
 base-shell-integration
@@ -426,7 +426,7 @@ base-shell-integration
 # Reload shell
 source ~/.bashrc
 
-# Now (elyx) is always active!
+# Now (mybase) is always active!
 ```
 
 ---
@@ -434,16 +434,16 @@ source ~/.bashrc
 ### Pattern 2: Project Development
 ```bash
 # Create project venv
-(elyx) $ cd ~/projects/myproject
-(elyx) $ vcreate  # Name: myproject, Preset: Web
+(mybase) $ cd ~/projects/myproject
+(mybase) $ vcreate  # Name: myproject, Preset: Web
 
 # Activate for work
-(elyx) $ vactivate myproject
+(mybase) $ vactivate myproject
 (myproject) $ # Work on project
 
 # Return to base
 (myproject) $ deactivate
-(elyx) $
+(mybase) $
 ```
 
 ---
@@ -451,10 +451,10 @@ source ~/.bashrc
 ### Pattern 3: Recovering from Disaster
 ```bash
 # Migrated from conda? Broken venvs?
-(elyx) $ vlist
+(mybase) $ vlist
 # Shows broken venvs
 
-(elyx) $ vrepair
+(mybase) $ vrepair
 # Select broken venv
 # Extracts packages from site-packages
 # Rebuilds with new Python
@@ -573,7 +573,7 @@ Edit `py-altinstall` configure flags:
 Base envs in `~/pylux-base-envs/` can be used as system-wide package repos:
 ```bash
 # Install in base
-(elyx) $ pip install numpy
+(mybase) $ pip install numpy
 
 # Use in venv via --system-site-packages
 vcreate  # Add flag in script
@@ -622,7 +622,7 @@ EOF
   └── data-analysis/
 
 ~/pylux-base-envs/            # Base environments
-  ├── elyx/
+  ├── mybase/
   ├── dev/
   └── ml-tools/
 
